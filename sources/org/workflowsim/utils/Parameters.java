@@ -26,8 +26,7 @@ import org.cloudbus.cloudsim.Log;
  * @date Apr 9, 2013
  */
 public class Parameters {
-
-    
+	 
     /*
      * Scheduling Algorithm (Local Scheduling Algorithm)
      */
@@ -35,7 +34,8 @@ public class Parameters {
     public enum SchedulingAlgorithm {
 
         MAXMIN, MINMIN, MCT, DATA, 
-        STATIC, FCFS, ROUNDROBIN, INVALID
+        STATIC, FCFS, ROUNDROBIN, INVALID,
+        DYNAMIC_RND, DYNAMIC_PART
     }
     
     /**
@@ -80,8 +80,48 @@ public class Parameters {
             this.value = model;
         }
     }
+    /**
+     * Partitioning related params
+     */
+    private static boolean use_thresholds = false;
+    private static int TASK_THRESHOLD = 0;
+    private static int SEC_THRESHOLD  = 0;
+    private static double THRESHOLD_CHECKING_INTERVAL = 1.0;
     
-    /** 
+    public static double getTHRESHOLD_CHECKING_INTERVAL() {
+		return THRESHOLD_CHECKING_INTERVAL;
+	}
+
+	public static void setTHRESHOLD_CHECKING_INTERVAL(double tHRESHOLD_CHECKING_INTERVAL) {
+		THRESHOLD_CHECKING_INTERVAL = tHRESHOLD_CHECKING_INTERVAL;
+	}
+
+	public static void enable_thresholds() {
+		use_thresholds = true;
+	}
+    
+    public static boolean thresholds_enabled() {
+    	return use_thresholds;
+	}
+    
+    public static int getTASK_THRESHOLD() {
+		return TASK_THRESHOLD;
+	}
+
+	public static void setTASK_THRESHOLD(int task_threshold) {
+		TASK_THRESHOLD = task_threshold;
+	}
+
+	public static int getSEC_THRESHOLD() {
+		return SEC_THRESHOLD;
+	}
+
+	public static void setSEC_THRESHOLD(int sec_threshold) {
+		SEC_THRESHOLD = sec_threshold;
+	}
+
+
+	/** 
      * Source Host (submit host)
      */
     public static String SOURCE = "source";

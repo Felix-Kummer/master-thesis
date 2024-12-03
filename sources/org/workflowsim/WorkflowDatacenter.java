@@ -126,12 +126,12 @@ public class WorkflowDatacenter extends Datacenter {
             }
 
 
-
-
             /**
              * Stage-in file && Shared based on the file.system
              */
-            if (cl.getClassType() == ClassType.STAGE_IN.value) {
+            // TODO This is the initial stageIn for all external input files for workflowSims' original SHARED functionality
+            // TODO 	I should likely replace that with my initial data distribution
+            if (cl.getClassType() == ClassType.STAGE_IN.value) { 
                 stageInFile2FileSystem(cl);
             }
 
@@ -236,7 +236,17 @@ public class WorkflowDatacenter extends Datacenter {
                  */
                 case SHARED:
                     ReplicaCatalog.addStorageList(file.getName(), this.getName());
+					ClusterStorage thisStorage;
+					try {
+						thisStorage = checkAndGetStorage(this);
+						thisStorage.addFile(file);
+					} catch (Exception e) {
+						e.printStackTrace();
+						System.exit(1);
+					}
+                    
                     break;
+                
                 default:
                     break;
             }
@@ -298,17 +308,34 @@ public class WorkflowDatacenter extends Datacenter {
                         /**
                          * Picks up the site that is closest
                          */
-                        if (cl.getClassType() == ClassType.STAGE_IN.value) {
-                            double maxRate = Double.MIN_VALUE;
-                            for (Storage storage : getStorageList()) {
-                                double rate = storage.getMaxTransferRate();
-                                if (rate > maxRate) {
-                                    rate = maxRate;
-                                }
+                        double maxRate = Double.MIN_VALUE;
+                        for (Iterator it = siteList.iterator(); it.hasNext();) { 
+                            
+                        	String site = (String) it.next();
+                        	
+                        	// need to avoid the source object
+                        	if (site.equals("source")) {
+                        		continue;
+                        	}
+                        	
+                        	// We exploit here that we name datacenter's cluster storages the same name as the datacenters
+                        	WorkflowDatacenter datacenter = (WorkflowDatacenter) CloudSim.getEntity(site);
+                        	
+                        	// validate and get the cluster storage
+                        	ClusterStorage storage = checkAndGetStorage(datacenter);
+                        	
+                        	// get transfer time from other datacenter to this (defined through ClusterStorages)
+                        	double rate = storage.getMaxTransferRate(this.getName()); 
+                            if (rate > maxRate) {
+                                maxRate = rate;
                             }
-                            //Storage storage = getStorageList().get(0);
-                            time += file.getSize() / maxRate;
                         }
+                        // add the file to this datacenter's cluster storage 
+                        ReplicaCatalog.addStorageList(file.getName(), getName());
+                        ClusterStorage thisStorage = checkAndGetStorage(this);
+                        thisStorage.addFile(file);
+                        
+                        time += file.getSize() / maxRate;
                         break;
                     case LOCAL:
 
@@ -438,6 +465,15 @@ public class WorkflowDatacenter extends Datacenter {
                 switch (ReplicaCatalog.getFileSystem()) {
                     case SHARED:
                         ReplicaCatalog.addStorageList(file.getName(), this.getName());
+                        ClusterStorage thisStorage;
+    					try {
+    						thisStorage = checkAndGetStorage(this);
+    						thisStorage.addFile(file);
+    					} catch (Exception e) {
+    						e.printStackTrace();
+    						System.exit(1);
+    					}
+                        
                         break;
                     case LOCAL:
                         int vmId = cl.getVmId();
@@ -453,5 +489,28 @@ public class WorkflowDatacenter extends Datacenter {
                 }
             }
         }
+    }
+    
+    /*
+     * This methods is exclusively designed for the Federated Partition Aproach
+     * It checks whether @param datacenter has exectly one storage of type Cluster Storage and returns it
+     */
+    static private ClusterStorage checkAndGetStorage(WorkflowDatacenter datacenter) throws Exception {
+    	
+    	// get the storage list
+    	List<Storage> storageList = datacenter.getStorageList();
+    	
+    	// ensure that the datacenter has exactly one storage and that it is a cluster Storage
+    	if (storageList.size() > 1) {
+    		throw new Exception("Datacenters should have only one storage for Federated Partitioning Evaluation");
+    	}
+    	if (!(storageList.get(0) instanceof ClusterStorage)) {
+    		throw new Exception("A datacenter has a invalid Storage type, "
+    				+ "should be ClusterStorage for Federated Partitioning Evaluation.");
+    	}
+    	
+    	ClusterStorage storage = (ClusterStorage) storageList.get(0);
+    	return storage;
+    	
     }
 }

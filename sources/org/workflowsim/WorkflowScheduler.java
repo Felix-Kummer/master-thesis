@@ -26,6 +26,7 @@ import org.cloudbus.cloudsim.core.CloudSim;
 import org.cloudbus.cloudsim.core.CloudSimTags;
 import org.cloudbus.cloudsim.core.SimEvent;
 import org.cloudbus.cloudsim.lists.VmList;
+import org.cloudbus.cloudsim.power.PowerVmAllocationPolicyMigrationStaticThreshold;
 import org.workflowsim.failure.FailureGenerator;
 import org.workflowsim.scheduling.DataAwareSchedulingAlgorithm;
 import org.workflowsim.scheduling.BaseSchedulingAlgorithm;
@@ -37,6 +38,10 @@ import org.workflowsim.scheduling.RoundRobinSchedulingAlgorithm;
 import org.workflowsim.scheduling.StaticSchedulingAlgorithm;
 import org.workflowsim.utils.Parameters;
 import org.workflowsim.utils.Parameters.SchedulingAlgorithm;
+
+import federatedSim.PartitioningScheduler;
+import federatedSim.RandomPartitioningScheduler;
+import federatedSim.ThresholdException;
 
 /**
  * WorkflowScheduler represents a algorithm acting on behalf of a user. It hides
@@ -167,6 +172,12 @@ public class WorkflowScheduler extends DatacenterBroker {
             case ROUNDROBIN:
                 algorithm = new RoundRobinSchedulingAlgorithm();
                 break;
+            case DYNAMIC_RND:
+            	algorithm = new RandomPartitioningScheduler();
+            	break;
+            case DYNAMIC_PART:
+            	algorithm = new PartitioningScheduler();
+            	break;
             default:
                 algorithm = new StaticSchedulingAlgorithm();
                 break;
@@ -235,6 +246,10 @@ public class WorkflowScheduler extends DatacenterBroker {
             }
         }
     }
+    
+    // Bookkeeping for threshold checks, stores the last time we partitioned
+    private double lastPartitioningTime = 0.0;
+    
 
     /**
      * Update a cloudlet (job)
@@ -248,12 +263,30 @@ public class WorkflowScheduler extends DatacenterBroker {
         scheduler.setVmList(getVmsCreatedList());
 
         try {
+        	if (Parameters.thresholds_enabled()) { // Threshold-based Scheduling
+        		if (getCloudletList().size() < Parameters.getTASK_THRESHOLD()) { // check task threshold
+        			if (CloudSim.clock() - lastPartitioningTime < Parameters.getSEC_THRESHOLD()) { // check time threshold
+        				
+        				// send message to check thresholds again with delay defined in Parameters
+        				schedule(
+        						this.getId(), 
+        						Parameters.getTHRESHOLD_CHECKING_INTERVAL(), 
+        						WorkflowSimTags.CLOUDLET_UPDATE);
+        				
+        				// throw an exception to signal that no threshold was surpassed
+        				throw new ThresholdException();
+        			}
+        		}
+        	}
             scheduler.run();
+            lastPartitioningTime = CloudSim.clock();
+            
+        } catch (ThresholdException e) {
+        	Log.printLine(e.getMessage()); // TODO maybe enrich this to log threshold behavior
         } catch (Exception e) {
             Log.printLine("Error in configuring scheduler_method");
             e.printStackTrace();
-        }
-
+        } 
         List scheduledList = scheduler.getScheduledList();
         for (Iterator it = scheduledList.iterator(); it.hasNext();) {
             Cloudlet cloudlet = (Cloudlet) it.next();

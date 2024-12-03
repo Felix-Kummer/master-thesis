@@ -33,6 +33,8 @@ import org.workflowsim.failure.FailureParameters;
 import org.workflowsim.utils.Parameters;
 import org.workflowsim.utils.ReplicaCatalog;
 
+import federatedSim.DynamicAbstractDag;
+
 /**
  * WorkflowParser parse a DAX into tasks so that WorkflowSim can manage them
  *
@@ -129,7 +131,13 @@ public class WorkflowParser {
     public void parse() {
         parseTextFile();
         parseXmlFile();
+        DynamicAbstractDag.init(taskList);
     }
+    
+    
+    private void getAbstractDag() {
+		
+	}
 
     /**
      * Parse a text file (file size and runtime). Add them to mName2Size and

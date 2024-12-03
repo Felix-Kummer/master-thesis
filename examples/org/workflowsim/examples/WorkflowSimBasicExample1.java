@@ -99,12 +99,11 @@ public class WorkflowSimBasicExample1 {
              * exact vmNum would be smaller than that. Take care.
              */
             int vmNum = 20;//number of vms;
-            /**
-             * Should change this based on real physical path
-             */
-            String daxPath = "/Users/chenweiwei/Work/WorkflowSim-1.0/config/dax/Montage_100.xml";
+            
+            // String daxPath = "/home/fk/Schreibtisch/master/workflowSim_git/config/dax/Montage_100.xml";
+            String daxPath = "/home/fk/Schreibtisch/master/workflowSim_git/config/dax/Montage_25.xml";
             if(daxPath == null){
-                Log.printLine("Warning: Please replace daxPath with the physical path in your working environment!");
+                Log.printLine("[DONE]  Warning: Please replace daxPath with the physical path in your working environment!");
                 return;
             }
             File daxFile = new File(daxPath);

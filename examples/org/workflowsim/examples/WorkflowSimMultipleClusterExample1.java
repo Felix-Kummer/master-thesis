@@ -55,7 +55,7 @@ import org.workflowsim.utils.ReplicaCatalog;
  * @since WorkflowSim Toolkit 1.0
  * @date Apr 9, 2013
  */
-public class WorkflowSimMultipleClusterExample1 extends WorkflowSimBasicExample1{
+public class WorkflowSimMultipleClusterExample1 extends WorkflowSimBasicExample1 {
 
     protected static List<CondorVM> createVM(int userId, int vms, int vmIdBase) {
 
