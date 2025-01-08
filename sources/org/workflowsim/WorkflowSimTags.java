@@ -46,6 +46,10 @@ public class WorkflowSimTags {
     public static final int CLOUDLET_CHECK = BASE + 6;
 
     /**
+     * Tag for federated partitioning that signals that a cloudlet exceeded the datacenters local storage
+     */
+    public static final int CLOUDLET_STORAGE_EXCEEDED = BASE + 7;
+    /**
      * Private Constructor
      */
     private WorkflowSimTags() {

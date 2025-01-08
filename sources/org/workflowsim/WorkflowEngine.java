@@ -28,6 +28,7 @@ import org.cloudbus.cloudsim.core.SimEntity;
 import org.cloudbus.cloudsim.core.SimEvent;
 import org.workflowsim.reclustering.ReclusteringEngine;
 import org.workflowsim.utils.Parameters;
+import federatedSim.utils.DisjointSetUnion;
 
 /**
  * WorkflowEngine represents a engine acting on behalf of a user. It hides VM
@@ -94,6 +95,7 @@ public class WorkflowEngine extends SimEntity {
             getSchedulers().add(wfs);
             getSchedulerIds().add(wfs.getId());
             wfs.setWorkflowEngineId(this.getId());
+            wfs.setRetriedJobIdsSetUnion(retriedJobsSetUnion);
         }
 
 
@@ -226,6 +228,16 @@ public class WorkflowEngine extends SimEntity {
         setJobsList(list);
     }
 
+
+    /**
+     * this field is used to group job id's that are retries of another job
+     */
+    DisjointSetUnion retriedJobsSetUnion = new DisjointSetUnion();
+
+    public DisjointSetUnion getRetriedJobsSetUnion() {
+        return retriedJobsSetUnion;
+    }
+
     /**
      * Process a job return event.
      *
@@ -242,6 +254,16 @@ public class WorkflowEngine extends SimEntity {
             int newId = getJobsList().size() + getJobsSubmittedList().size();
             getJobsList().addAll(ReclusteringEngine.process(job, newId));
 
+            // remember which job id's are retries of the other job
+            int oldId = job.getCloudletId();
+            if (!retriedJobsSetUnion.contains(oldId)){
+                retriedJobsSetUnion.add(oldId);
+                retriedJobsSetUnion.add(newId);
+                retriedJobsSetUnion.union(oldId, newId);
+            } else {
+                retriedJobsSetUnion.add(newId);
+                retriedJobsSetUnion.union(oldId, newId);
+            }
         }
 
         getJobsReceivedList().add(job);

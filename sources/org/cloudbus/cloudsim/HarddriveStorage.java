@@ -483,7 +483,8 @@ public class HarddriveStorage implements Storage {
 		// check the capacity
 		if (file.getSize() + currentSize > capacity) {
 			Log.printLine(name + ".addFile(): Warning - not enough space" + " to store " + file.getName());
-			return result;
+			throw new RuntimeException("A job was scheduled to a site where storage is exceeded.");
+			//return result;
 		}
 
 		// check if the same file name is alredy taken

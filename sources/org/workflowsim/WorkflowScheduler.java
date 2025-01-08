@@ -15,9 +15,8 @@
  */
 package org.workflowsim;
 
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
+import java.util.*;
+
 import org.cloudbus.cloudsim.Cloudlet;
 import org.cloudbus.cloudsim.DatacenterBroker;
 import org.cloudbus.cloudsim.DatacenterCharacteristics;
@@ -26,7 +25,6 @@ import org.cloudbus.cloudsim.core.CloudSim;
 import org.cloudbus.cloudsim.core.CloudSimTags;
 import org.cloudbus.cloudsim.core.SimEvent;
 import org.cloudbus.cloudsim.lists.VmList;
-import org.cloudbus.cloudsim.power.PowerVmAllocationPolicyMigrationStaticThreshold;
 import org.workflowsim.failure.FailureGenerator;
 import org.workflowsim.scheduling.DataAwareSchedulingAlgorithm;
 import org.workflowsim.scheduling.BaseSchedulingAlgorithm;
@@ -42,6 +40,10 @@ import org.workflowsim.utils.Parameters.SchedulingAlgorithm;
 import federatedSim.PartitioningScheduler;
 import federatedSim.RandomPartitioningScheduler;
 import federatedSim.ThresholdException;
+import federatedSim.utils.DisjointSetUnion;
+
+import static org.workflowsim.utils.Parameters.SchedulingAlgorithm.DYNAMIC_PART;
+import static org.workflowsim.utils.Parameters.SchedulingAlgorithm.DYNAMIC_RND;
 
 /**
  * WorkflowScheduler represents a algorithm acting on behalf of a user. It hides
@@ -130,6 +132,10 @@ public class WorkflowScheduler extends DatacenterBroker {
 
             case WorkflowSimTags.CLOUDLET_UPDATE:
                 processCloudletUpdate(ev);
+                break;
+
+            case WorkflowSimTags.CLOUDLET_STORAGE_EXCEEDED:
+                processCloudletOutputExceededStorage(ev);
                 break;
             // other unknown tags are processed by this method
             default:
@@ -262,6 +268,22 @@ public class WorkflowScheduler extends DatacenterBroker {
         scheduler.setCloudletList(getCloudletList());
         scheduler.setVmList(getVmsCreatedList());
 
+        // federated partitioning related options - add more if applicable
+
+        // dynamic random
+        if (Parameters.getSchedulingAlgorithm() == DYNAMIC_RND) {
+            // let scheduling algo know which task exceeded which storage
+            ((RandomPartitioningScheduler) scheduler).addExceededMap(exceededStorageMap);
+            ((RandomPartitioningScheduler) scheduler).addRetriedJobsSetUnion(retriedJobIdsSetUnion);
+
+        // dynamic partitioning
+        } else if (Parameters.getSchedulingAlgorithm() == DYNAMIC_PART){
+            // let scheduling algo know which task exceeded which storage
+            ((PartitioningScheduler) scheduler).addExceededMap(exceededStorageMap);
+            ((PartitioningScheduler) scheduler).addRetriedJobsSetUnion(retriedJobIdsSetUnion);
+        }
+
+
         try {
         	if (Parameters.thresholds_enabled()) { // Threshold-based Scheduling
         		if (getCloudletList().size() < Parameters.getTASK_THRESHOLD()) { // check task threshold
@@ -351,6 +373,90 @@ public class WorkflowScheduler extends DatacenterBroker {
         /**
          * Left for future use.
          */
+    }
+
+    /**
+     * bookkeeping of retry jobs to enable exceeded Storage checks for retried jobs (these have a new id after retry)
+     */
+    DisjointSetUnion retriedJobIdsSetUnion;
+
+    public void setRetriedJobIdsSetUnion(DisjointSetUnion dsu) {
+        retriedJobIdsSetUnion = dsu;
+    }
+
+
+
+    /**
+     * for cloudlets stores storages where the cloudlet (when registering its output files) exceeded the available storage.
+     * maps from cloudletId to set of datacenterIds
+     * only applicable in federated partitioning context
+     */
+    Map<Integer, Set<Integer>> exceededStorageMap = new HashMap<Integer, Set<Integer>>();
+
+    /**
+     * process the event that a cloudlet finished, but the output files exceeded the site's storage capacity
+     * only applicable in federated partitioning context
+     *
+     * @param ev a simEvent object
+     */
+    protected void processCloudletOutputExceededStorage(SimEvent ev) {
+        // get cloudlet/job
+        Cloudlet cloudlet = (Cloudlet) ev.getData();
+        Task job = (Task) ev.getData();
+
+        Log.printLine("Job " + job.getType() + " exceeded output storage, resubmitting ");
+
+        // get ID's of datacenter with exceeded storage and the cloudlet
+        int senderId   = ev.getSource();
+        int cloudletId = cloudlet.getCloudletId();
+
+        // if this is a retry, we need to get the first id of this job
+        // this work because of the way we store job Ids
+        // the first occurrence of a (multiple times) retried job will always be the representative
+        if (retriedJobIdsSetUnion.contains(senderId)) {
+            senderId = retriedJobIdsSetUnion.find(senderId);
+        }
+
+        // bookkeeping for exceeded storages
+        exceededStorageMap.computeIfAbsent(cloudletId, cl -> new HashSet<>()).add(senderId);
+
+        try {
+            job.setCloudletStatus(Cloudlet.FAILED);
+        } catch (Exception e) {
+            e.printStackTrace();
+            throw new RuntimeException(e);
+        }
+        processCloudletReturn(ev);
+
+
+
+        // old resubmit below, was not working because cloudsim does not support resubmitting the same job again
+        /*
+
+        // add cloudlet to list of tasks again
+        getCloudletList().add(cloudlet);
+
+        // remove from submitted list
+        boolean result = getCloudletSubmittedList().remove(cloudlet);
+        if (!result){
+            throw new RuntimeException("cloudlet should be resubmitted but was not present in the submitted list" );
+
+        }
+
+        // reset submitted counter
+        cloudletsSubmitted -= 1;
+
+        // reset job
+        job.setTaskFinishTime(-1);
+        job.setExecStartTime(-1);
+        try {
+            job.setCloudletStatus(Cloudlet.CREATED);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+
+        // sent cloudlet update to re-invoke scheduling
+        schedule(this.getId(), 0.0, WorkflowSimTags.CLOUDLET_UPDATE);*/
     }
 
     /**

@@ -59,6 +59,7 @@ public class ReclusteringEngine {
             newJob.setParentList(job.getParentList());
             newJob.setTaskList(taskList);
             newJob.setDepth(job.getDepth());
+            newJob.setFileList(job.getFileList());
             for (Iterator it = job.getChildList().iterator(); it.hasNext();) {
                 Job cJob = (Job) it.next();
                 cJob.addParent(newJob);

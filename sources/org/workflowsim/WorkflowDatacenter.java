@@ -15,8 +15,11 @@
  */
 package org.workflowsim;
 
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+
+import federatedSim.StorageException;
 import org.cloudbus.cloudsim.Cloudlet;
 import org.cloudbus.cloudsim.CloudletScheduler;
 import org.cloudbus.cloudsim.Consts;
@@ -44,6 +47,7 @@ import org.workflowsim.utils.Parameters.FileType;
  * @since WorkflowSim Toolkit 1.0
  * @date Apr 9, 2013
  */
+@SuppressWarnings("ForLoopReplaceableByForEach")
 public class WorkflowDatacenter extends Datacenter {
 
     public WorkflowDatacenter(String name,
@@ -439,8 +443,23 @@ public class WorkflowDatacenter extends Datacenter {
                 while (vm.getCloudletScheduler().isFinishedCloudlets()) {
                     Cloudlet cl = vm.getCloudletScheduler().getNextFinishedCloudlet();
                     if (cl != null) {
-                        sendNow(cl.getUserId(), CloudSimTags.CLOUDLET_RETURN, cl);
-                        register(cl);
+                        // attempt to add output files to local cluster storage
+                        try {
+                            // register files to this datacenter's cluster storage
+                            register(cl);
+
+                            // no exception -> cloudlet finished successfully -> inform scheduler
+                            sendNow(cl.getUserId(), CloudSimTags.CLOUDLET_RETURN, cl);
+
+                        } catch (StorageException e) {
+                            // cloudlet's output files exceeded the locally available storage
+                            Log.printLine("Task's " +  cl.getCloudletId() + " output files have exceeded the capacity of "
+                                + this.getName() + "'s storage.");
+
+
+                            // inform scheduler about exceeded storage -> needs to resubmit to another datacenter
+                            sendNow(cl.getUserId(), WorkflowSimTags.CLOUDLET_STORAGE_EXCEEDED, cl);
+                        }
                     }
                 }
             }
@@ -454,28 +473,62 @@ public class WorkflowDatacenter extends Datacenter {
      * @post $none
      */
 
-    private void register(Cloudlet cl) {
+    private void register(Cloudlet cl) throws StorageException {
         Task tl = (Task) cl;
         List fList = tl.getFileList();
-        for (Iterator it = fList.iterator(); it.hasNext();) {
-            org.cloudbus.cloudsim.File file = (org.cloudbus.cloudsim.File) it.next();
-            if (file.getType() == FileType.OUTPUT.value)//output file
-            {
 
-                switch (ReplicaCatalog.getFileSystem()) {
-                    case SHARED:
+        switch (ReplicaCatalog.getFileSystem()) {
+            case SHARED:
+                // get this DataCenter's ClusterStorage
+                ClusterStorage thisStorage = null;
+                try {
+                    thisStorage = checkAndGetStorage(this);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    System.exit(1);
+                }
+
+                // List of output files
+                List<File> outputFileList = new ArrayList<>();
+
+                // Bookkeeping for file output sizes
+                double outputSize = 0.0;
+
+                // iterate all files used by the task (includes inputs)
+                for (Iterator it = fList.iterator(); it.hasNext();){
+                    org.cloudbus.cloudsim.File file = (org.cloudbus.cloudsim.File) it.next();
+                    if (file.getType() == FileType.OUTPUT.value) { // is output file -> need  to add to storage
+
+                        // Add output file
+                        outputFileList.add(file);
+
+                        // Add size to total output size
+                        outputSize += file.getSize();
+                    }
+                }
+
+                // cannot fit all files into storage
+                if (thisStorage.getAvailableSpace() < outputSize) {
+                    // let parent call know with custom Exception that signals the output size
+                    throw new StorageException(outputSize);
+
+                // can fit all files -> add them
+                } else {
+                    // add files to storage
+                    double storageResult = thisStorage.addFile(outputFileList);
+
+                    // if all output files have been added, without errors, add them to the ReplicaCatalog so that they are findabale
+                    for (File file : outputFileList) {
                         ReplicaCatalog.addStorageList(file.getName(), this.getName());
-                        ClusterStorage thisStorage;
-    					try {
-    						thisStorage = checkAndGetStorage(this);
-    						thisStorage.addFile(file);
-    					} catch (Exception e) {
-    						e.printStackTrace();
-    						System.exit(1);
-    					}
-                        
-                        break;
-                    case LOCAL:
+                    }
+                }
+
+                break;
+
+            case LOCAL:
+                for (Iterator it = fList.iterator(); it.hasNext();) {
+                    org.cloudbus.cloudsim.File file = (org.cloudbus.cloudsim.File) it.next();
+                    if (file.getType() == FileType.OUTPUT.value) { //output file
                         int vmId = cl.getVmId();
                         int userId = cl.getUserId();
                         Host host = getVmAllocationPolicy().getHost(vmId, userId);
@@ -485,9 +538,10 @@ public class WorkflowDatacenter extends Datacenter {
                         CondorVM vm = (CondorVM) host.getVm(vmId, userId);
 
                         ReplicaCatalog.addStorageList(file.getName(), Integer.toString(vmId));
-                        break;
+                    }
                 }
-            }
+
+                break;
         }
     }
     
