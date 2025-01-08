@@ -95,7 +95,8 @@ public class FederatedTwoSites {
 		try {
 			
 			// Load workflow
-			 String daxPath = "/home/fk/Schreibtisch/master/workflowSim_git/config/dax/Montage_100.xml";
+			 //String daxPath = "/home/fk/Schreibtisch/master/workflowSim_git/config/dax/Montage_100.xml";
+			 String daxPath = "/home/fk/Schreibtisch/master/workflowSim_git/config/dax/test_dax/two_task_memory.xml";
 	            if(daxPath == null){
 	                Log.printLine("[DONE]  Warning: Please replace daxPath with the physical path in your working environment!");
 	                return;
@@ -269,8 +270,15 @@ public class FederatedTwoSites {
         try {
         	
         	// IMPORTANT keep name as it is here so that storages have the same name as their datacenters
-        	ClusterStorage s1 = new ClusterStorage(name, 1e12);
-            if (name.equals("Datacenter_0")) {
+        	ClusterStorage s1 = new ClusterStorage(name, 1e12); // TODO: the capacity has to be specified for each cluster!
+
+			// TODO datacenter-wise storage capacity is configurable like this:
+
+			if (name.equals("Datacenter_1")) {
+				s1 = new ClusterStorage(name, 1000);
+			}
+
+			if (name.equals("Datacenter_0")) {
                 /**
                  * The bandwidth from Datacenter_0 to Datacenter_1.
                  */
