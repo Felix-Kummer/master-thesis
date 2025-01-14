@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
 <adag xmlns="http://pegasus.isi.edu/schema/DAX" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://pegasus.isi.edu/schema/DAX http://pegasus.isi.edu/schema/dax-2.1.xsd" version="2.1" count="1" index="0" name="two_task_memory" jobCount="2" fileCount="0" childCount="1">
-    <job id="ID00025" namespace="two_task_memory" name="SmallJob" version="1.0" runtime="0.5">
+    <job id="ID00000" namespace="two_task_memory" name="SmallJob" version="1.0" runtime="0.5">
         <uses file="smallfile" link="output" register="true" transfer="true" optional="false" type="data" size="100000000"/>
     </job>
 
-    <job id="ID00001" namespace="two_task_memory" name="SmallJob" version="1.0" runtime="10.0">
+    <job id="ID00001" namespace="two_task_memory" name="LargeJob" version="1.0" runtime="10.0">
         <uses file="largefile" link="input" register="true" transfer="true" optional="false" type="data" size="100000000"/>
     </job>
 
