@@ -21,6 +21,8 @@ public class PartitioningScheduler extends BaseSchedulingAlgorithm {
 		retriedJobsSetUnion = dsu;
 	}
 
+	// TODO use processInitialPartitioning for initial 'blind' partitioning,
+
 	@Override
 	public void run() throws Exception {
 		// TODO Auto-generated method stub

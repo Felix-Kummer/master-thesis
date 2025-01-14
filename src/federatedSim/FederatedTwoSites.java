@@ -38,7 +38,7 @@ import org.workflowsim.utils.ReplicaCatalog;
 
 public class FederatedTwoSites {
 	
-	// site params
+	// TODO site params
 	static int NUM_SITES = 2; // 2 sites, 2 Vms
 	
 	
