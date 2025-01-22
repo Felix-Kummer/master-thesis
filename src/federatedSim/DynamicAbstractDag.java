@@ -44,7 +44,7 @@ public class DynamicAbstractDag {
 
 	public static void processInitialPartitioning(List<Job> jobs) {
 
-		// maps job names to task-per-site lost
+		// maps job names to task-per-site
 		Map<String, int[]> name2tps = new HashMap<>();
 
 		for (Job job : jobs) {
@@ -73,14 +73,13 @@ public class DynamicAbstractDag {
 
 			// init initial jobs
 			DynamicAbstractNode jobNode = name2node.get(entry.getKey());
-			jobNode.setTaskMappingCount(entry.getValue());
+			jobNode.setTaskEstimates(entry.getValue());
 
 			// propagate changes through dynamic DAG
-			jobNode.propagate(new int[0]); // we don't need to pass values here because these are start nodes and we don't have anything to propagate upwards atm.
+			jobNode.propagate(new int[0], new double[0]); // we don't need to pass values here because these are start nodes and we don't have anything to propagate upwards atm.
 
-			// add start note
+			// add start note for later updates
 			startNodes.add(jobNode);
-
 		}
 	}
 
@@ -94,7 +93,7 @@ public class DynamicAbstractDag {
 
 		// propagate changes
 		for (DynamicAbstractNode startNode : startNodes) {
-			startNode.propagate(new int[0]); // empty array because these are start nodes and there is no basis to propaget from
+			startNode.propagate(new int[0], new double[0]); // empty array because these are start nodes and there is no basis to propaget from
 		}
 
 
@@ -149,46 +148,125 @@ public class DynamicAbstractDag {
 			// get the node
 			DynamicAbstractNode jobNode = name2node.get(job.getTaskList().get(0).getType());
 
-			// update dependency structure
-			updateDependencyStructures(job, jobNode);
+			// update input file sizes (and get input files)
+			Map<String, Integer> inputFiles = updateInputSizes(job, jobNode);
 
-			// update input file sizes
-			updateInputSizes(job, jobNode);
-
-
+			// update dependency structure, includes transfer sizes
+			updateDependencyStructures(job, jobNode, inputFiles);
 		}
 	}
 
 
-	private static void updateDependencyStructures(Job newJob, DynamicAbstractNode childJobNode) {
+	private static void updateDependencyStructures(Job newJob, DynamicAbstractNode childJobNode, Map<String, Integer> inputFiles) {
 		// get parents
 		List<Job> parentJobs = newJob.getParentList();
 
-		// extract dependency structure
+		// extract dependency structure and transfer sizes
 		HashMap<DynamicAbstractNode, Integer> deps = new HashMap<>();
+		HashMap<DynamicAbstractNode, Double>  transferSizes = new HashMap<>();
 		for (Job parent : parentJobs) {
 			DynamicAbstractNode parentNode = name2node.get(parent.getTaskList().get(0).getType());
 			deps.put(parentNode, deps.getOrDefault(parentNode, 0) + 1 );
+
+			// find which input file this parent provides and update transfer costs
+			for (Object o : parent.getFileList()) {
+				File parentOutputFile = (File) o;
+				String parentOutputFileName = parentOutputFile.getName();
+				if (parentOutputFile.getType() == Parameters.FileType.OUTPUT.value && inputFiles.containsKey(parentOutputFileName)) { // is this file an output of parent that is an input of the current job
+					transferSizes.put(parentNode, transferSizes.getOrDefault(parentNode, 0.0 ) + inputFiles.get(parentOutputFile));
+				}
+			}
 		}
 
 		// update dependency structure
 		for (DynamicAbstractNode parentNode : deps.keySet()){
 			DynamicAbstractEdge edge = parentNode.getChildrenEdges().get(childJobNode.getName());
 			edge.updateDependencyType(deps.get(parentNode));
+			edge.updateTransferSize(transferSizes.get(parentNode));
 		}
 	}
 
-	private static void updateInputSizes(Job newJob, DynamicAbstractNode jobNode) {
+	private static Map<String, Integer> updateInputSizes(Job newJob, DynamicAbstractNode jobNode) {
+		// bookkeeping of input files for other updates
+		HashMap<String, Integer> inputFileNames  = new HashMap();
+
+
 		int inputSize = 0;
 		for (File file : (List<File>) newJob.getFileList()) {
 			if (file.getType() == Parameters.FileType.INPUT.value) {
 				inputSize += file.getSize();
+				inputFileNames.put(file.getName(), file.getSize());
 			}
 		}
 
 		jobNode.updateAverageInputSize(inputSize);
+
+		return inputFileNames;
 	}
 
+	// returns the total estimated size (input + output), per site, combining each estimated job for a given job's type
+	public static double[] getEstimatedSize4JobType(Job job) {
+		// get job name
+		String jobName = job.getTaskList().get(0).getType();
+
+		return name2node.get(jobName).getSizeEstimates();
+	}
+
+	// returns the estimated size (input + output) for a single job of the give job's type
+	public static double getEstimatedSize4Job(Job job) {
+		// get job name
+		String jobName = job.getTaskList().get(0).getType();
+
+		DynamicAbstractNode node = name2node.get(jobName);
+
+		return node.getAssumedOrPredictedInputSize() + node.getAssumedOrPredictedOutputSize();
+	}
+
+	// returns the estimated total size of each site mapping, including all jobs
+	public static double[] getTotalSizeEstimates() {
+
+		int numSites = Parameters.getVmNum();
+
+		double[] aggregates = new double[numSites];
+
+		// iterate all know job types (=names)
+		for (DynamicAbstractNode node : name2node.values()) {
+			// get site-wise estimates for all estimated jobs
+			double[] estimates = node.getSizeEstimates();
+
+			// aggregate
+			for (int i = 0; i < numSites; i++){
+				aggregates[i] += estimates[i];
+			}
+		}
+
+		return aggregates;
+	}
+
+	// returns the estimated size of a single Job of job's type and its entire subtree (children, children of children ,...)
+	public static double getEstimatedSize4SubDAG(Job job) {
+		return name2node.get(job.getTaskList().get(0).getType()).getSubtreeSize(new HashSet<>());
+	}
+
+	// returns the estimated output sizes for a job's Job type
+	public static double getEstimatedOutputSize(Job job) {
+		return name2node.get(job.getTaskList().get(0).getType()).getAssumedOrPredictedOutputSize();
+	}
+
+	// returns the estimated input sizes for a job's Job type
+	public static double getEstimatedInputSize(Job job) {
+		return name2node.get(job.getTaskList().get(0).getType()).getAssumedOrPredictedInputSize();
+	}
+
+	// update shift array for node of job's type where increaseId site will get +1 and decreaseId will get -1
+	// this is used in the partitioner to signal job assignments that a contrary to the best node assignment
+	public static void updateShiftArray(Job job, int increaseId, int decreaseId) {
+		DynamicAbstractNode jobNode = name2node.get(job.getTaskList().get(0).getType());
+
+		jobNode.updateShiftArray(increaseId, decreaseId);
+
+
+	}
 
 
 	private static class DynamicAbstractNode {
@@ -313,7 +391,7 @@ public class DynamicAbstractDag {
 		// count physically finished instances
 		private int receivedCount = 0;
 
-		private int averageOutputSize = 0;
+		private double averageOutputSize = 0;
 
 		private void updateAverageOutputSize(int size) {
 			receivedCount ++;
@@ -323,7 +401,7 @@ public class DynamicAbstractDag {
 		// physically submitted instances
 		private int submittedCount = 0;
 
-		private int averageInputSize = 0;
+		private double averageInputSize = 0;
 
 		private void updateAverageInputSize(int size) {
 			submittedCount ++;
@@ -332,14 +410,14 @@ public class DynamicAbstractDag {
 
 
 		// stores the amount of physical tasks predicted for this task type
-		private int[] taskMappingCount = new int[Parameters.getVmNum()];
+		private int[] taskEstimates = new int[Parameters.getVmNum()];
 
-		public int[] getTaskMappingCount() {
-			return taskMappingCount;
+		public int[] getTaskEstimates() {
+			return taskEstimates;
 		}
 
-		public void setTaskMappingCount(int[] taskMappingCount) {
-			this.taskMappingCount = taskMappingCount;
+		public void setTaskEstimates(int[] taskEstimates) {
+			this.taskEstimates = taskEstimates;
 		}
 
 
@@ -351,8 +429,12 @@ public class DynamicAbstractDag {
 		// count parent edges that have propagated their estimates
 		private int propagationCount = 0;
 
+		// bookkeeping for highest transfer size from children
+		// we use this to keep taskEstimates for the predicted best continuation
+		private double[] highestTransferSizes = new double[Parameters.getVmNum()];
+
 		// propagate task counts estimates downstream (from parents to children)
-		protected void propagate(int[] newEstimates){
+		protected void propagate(int[] newTaskNumberEstimates, double[] transferSizes){
 
 			// increase propagation counter
 			propagationCount++;
@@ -364,27 +446,28 @@ public class DynamicAbstractDag {
 
 				// first parent propagated
 				if (propagationCount == 1) {
-					taskMappingCount = newEstimates;
+					taskEstimates = newTaskNumberEstimates;
 
 				} else if ( propagationCount < parentSize) {
 					// compare known with new estimates, keep higher number
-					compareTaskEstimates(newEstimates);
+					compareTaskEstimates(newTaskNumberEstimates, transferSizes);
 
 				// last parent propagated  -> this can propagate
 				} else if (propagationCount == parentSize) {
 					// compare known with new estimates, keep higher number
-					compareTaskEstimates(newEstimates);
+					compareTaskEstimates(newTaskNumberEstimates, transferSizes);
 
-					// reset propagation counter
+					// reset propagation counter and transfersizes
 					propagationCount = 0;
+					highestTransferSizes = new double[Parameters.getVmNum()];
 
-					// add shift offset form actual partitioning
+					// add shift offset from actual partitioning
 					for (int i = 0; i < Parameters.getVmNum(); i++){
-						taskMappingCount[i] += shiftArray[i];
+						taskEstimates[i] += shiftArray[i];
 					}
 
 					// propagate through child edges
-					propagateToChildren(taskMappingCount);
+					propagateToChildren(taskEstimates);
 
 				} else {
 					throw new RuntimeException("Error in propagating task estimates");
@@ -392,27 +475,142 @@ public class DynamicAbstractDag {
 
 			// special case: starter nodes
 			} else {
-				propagateToChildren(taskMappingCount); // this is set once for initial nodes and can't change
+				propagateToChildren(taskEstimates); // this is set once for initial nodes and can't change
 			}
 
 		}
 
-		// helper function that compares and stores the max number of tasks pre side predicted by parent node dependencies nodes
-		private void compareTaskEstimates(int[] newEstimates) {
+		// helper function that compares and stores the number of tasks per side
+		// it favors the newEstimates for a site, if it would transfer more data than previously -> this mean less data is moved across sites
+		private void compareTaskEstimates(int[] newEstimates, double[] transferSizes) {
 			for (int i = 0; i < Parameters.getVmNum(); i++){
-				if (taskMappingCount[i] < newEstimates[i]) {
-					taskMappingCount[i] = newEstimates[i];
+				if (highestTransferSizes[i] < transferSizes[i]) {
+					taskEstimates[i]        = newEstimates[i];
+					highestTransferSizes[i] = transferSizes[i];
 				};
 			}
 		}
 
-		// helper function to propagate values to children
-		private void propagateToChildren(int[] estimates) {
-			for (DynamicAbstractEdge childEdge : childrenEdges.values()){
-				childEdge.propagate(estimates);
+		// update shift count to reflect changes in the real partitioning
+		protected void updateShiftArray(int increaseId, int decreaseId) {
+			shiftArray[increaseId] += 1;
+			shiftArray[decreaseId] -= 1;
+		}
+
+
+		// estimates for the total size of this job on each site
+		private double[] sizeEstimates = new double[Parameters.getVmNum()];
+
+		public double[] getSizeEstimates() {
+			return sizeEstimates;
+		}
+
+
+
+		// these fields hold the assumed output and input sizes
+		// this is important if no real data is available yet and a children/the partitioner need the size for their own size predictions/partitioning
+		private double assumedOutputSize = 0;
+		private double assumedInputSize = 0;
+
+		// return the assumed output size (if no output estimate is available) or the predicted size
+		public double getAssumedOrPredictedOutputSize() {
+			if (receivedCount == 0) {
+				return assumedOutputSize;
+			} else {
+				return averageOutputSize;
 			}
 
 		}
+
+		public double getAssumedOrPredictedInputSize() {
+			if (submittedCount == 0){
+				return assumedInputSize;
+			} else {
+				return averageInputSize;
+			}
+		}
+
+		// estimates the input size of this node from parents (possibly assumed) output size
+		// this is required when no input sizes are available yet
+		private double assumeInputSize() {
+
+			double inputSize = 0.0;
+
+			// iterate parents
+			for (DynamicAbstractEdge parentEdge : parentsEdges.values()) {
+				DynamicAbstractNode parentNode = parentEdge.getNode1();
+
+				// get parents output size
+				double parentOutput = parentNode.getAssumedOrPredictedOutputSize();
+
+				// get number of children of this parent
+				int parentsChildren = parentNode.getChildrenEdges().size();
+
+				// assume output = parentOutput/parentsChildren
+				inputSize += parentOutput/parentsChildren;
+
+			}
+			return inputSize;
+		}
+
+		// helper function to propagate values to children
+		private void propagateToChildren(int[] estimates) {
+			// update size estimates along the way (required because the Partitioner may query size estimates after every full DAG propagation)
+			 double inputSize  = averageInputSize;
+			 double outputSize = averageOutputSize;
+
+			// special case: we don't have input estimates yet
+			if (submittedCount == 0) {
+				// we need to assume inputs from parents outputs
+				inputSize = assumeInputSize();
+
+				// if no job was submitted, non can be received -> we need to assume the output size too (we assume output = input)
+				outputSize = inputSize;
+
+				// store assumed sizes
+				assumedInputSize = inputSize;
+				assumedOutputSize = outputSize;
+
+			// second special case: we don't have output, but input estimates
+			} else if (receivedCount == 0) {
+				// in this case, we just assume a 1-to-1 mapping from inputs to outputs
+				outputSize = inputSize;
+
+				// store assumed sizes
+				assumedInputSize = inputSize;
+				assumedOutputSize = outputSize;
+			}
+
+			for (int i = 0; i < Parameters.getVmNum(); i++ ){
+				sizeEstimates[i] = (double) taskEstimates[i] * (inputSize + outputSize);
+			}
+
+			// propagate over every edge to children
+			for (DynamicAbstractEdge childEdge : childrenEdges.values()){
+				childEdge.propagate(estimates);
+			}
+		}
+
+		// get size of subtree starting at single instance of this job
+		protected double getSubtreeSize(Set<String> knownNames) {
+			// check if this node was already considered
+			if (knownNames.contains(name)) {
+				return 0.0;
+			}
+
+			// add own name to jobs that have already contributed
+			knownNames.add(name);
+
+			// add own size
+			double size = getAssumedOrPredictedInputSize() + getAssumedOrPredictedOutputSize();
+
+			// add children's subtree sizes
+			for (DynamicAbstractEdge childrenEdge : childrenEdges.values()){
+				size += childrenEdge.getDependencyType() * childrenEdge.getNode2().getSubtreeSize(knownNames);
+			}
+			return size;
+		}
+
 	}
 
 	private static class DynamicAbstractEdge {
@@ -422,8 +620,8 @@ public class DynamicAbstractDag {
 		private DynamicAbstractNode node2;
 		
 		protected DynamicAbstractEdge(DynamicAbstractNode n1, DynamicAbstractNode n2) {
-			this.node1 = n1;
-			this.node2 = n2;
+			this.node1 = n1; // parent
+			this.node2 = n2; // children
 		}
 		
 		
@@ -443,7 +641,6 @@ public class DynamicAbstractDag {
 		public DynamicAbstractNode getNode1() { return node1; }
 		public DynamicAbstractNode getNode2() { return node2; }
 
-
 		// type of dependency,
 		// value 1.0 == one child has one parent
 		// value 2.0 == one child has two parents
@@ -456,13 +653,30 @@ public class DynamicAbstractDag {
 			dependencyType = ((dependencyType * (dependencyCount-count)) + count)/dependencyCount;
 		}
 
-		// propagate task estimates upward (from paren to children) by multiplying them with this.dependencyType
+		private double transferSize = 0.0;
+
+		private int transferSizeUpdateCount = 0;
+		public void updateTransferSize(double transferSizeUpdate) {
+			transferSizeUpdateCount ++;
+			transferSize = ((transferSize * (transferSizeUpdateCount-1)) + transferSizeUpdate)/transferSizeUpdateCount;
+
+		}
+
+		// propagate task estimates and transfer size upward (from paren to children) by multiplying them with this.dependencyType
 		protected void propagate (int[] estimates) {
 			int[] correctedEstimates = new int[estimates.length];
+			double[] transferSizes = new double[estimates.length];
 			for (int i = 0; i < estimates.length; i++ ) {
 				correctedEstimates[i] = (int) Math.round(estimates[i] * dependencyType);
+				transferSizes[i] = transferSize * dependencyType;
 			}
-			node2.propagate(correctedEstimates);
+
+
+			node2.propagate(correctedEstimates, transferSizes);
+		}
+
+		public double getDependencyType() {
+			return dependencyType;
 		}
 		
 	}
