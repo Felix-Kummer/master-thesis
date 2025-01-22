@@ -267,6 +267,7 @@ public class WorkflowScheduler extends DatacenterBroker {
         BaseSchedulingAlgorithm scheduler = getScheduler(Parameters.getSchedulingAlgorithm());
         scheduler.setCloudletList(getCloudletList());
         scheduler.setVmList(getVmsCreatedList());
+        scheduler.setReceivedList(getCloudletReceivedList());
 
         // federated partitioning related options - add more if applicable
 
