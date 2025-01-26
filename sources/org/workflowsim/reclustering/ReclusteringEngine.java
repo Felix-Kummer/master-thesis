@@ -63,6 +63,11 @@ public class ReclusteringEngine {
             for (Iterator it = job.getChildList().iterator(); it.hasNext();) {
                 Job cJob = (Job) it.next();
                 cJob.addParent(newJob);
+
+                // remove previous parent
+                cJob.getParentList().remove(job);
+
+                System.out.println("");
             }
 
             return newJob;

@@ -30,6 +30,19 @@ import java.util.List;
  */
 public class Job extends Task {
 
+    public int getPreviousVmId() {
+        return previousVmId;
+    }
+
+    public void setPreviousVmId(int previousVmId) {
+        this.previousVmId = previousVmId;
+    }
+
+    // stores previous site if this is a retry
+    private int previousVmId = -1;
+
+
+
     /*
      * The list of tasks a job has. It is the only difference between Job and Task. 
      */

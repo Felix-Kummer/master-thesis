@@ -403,9 +403,9 @@ public class WorkflowScheduler extends DatacenterBroker {
     protected void processCloudletOutputExceededStorage(SimEvent ev) {
         // get cloudlet/job
         Cloudlet cloudlet = (Cloudlet) ev.getData();
-        Task job = (Task) ev.getData();
+        Job job = (Job) ev.getData();
 
-        Log.printLine("Job " + job.getType() + " exceeded output storage, resubmitting ");
+        Log.printLine("Job " + job.getTaskList().get(0).getType() + " exceeded output storage, resubmitting ");
 
         // get ID's of datacenter with exceeded storage and the cloudlet
         int senderId   = ev.getSource();

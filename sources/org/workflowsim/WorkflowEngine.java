@@ -252,7 +252,12 @@ public class WorkflowEngine extends SimEntity {
         if (job.getCloudletStatus() == Cloudlet.FAILED) {
             // Reclusteringengine will add retry job to jobList
             int newId = getJobsList().size() + getJobsSubmittedList().size();
-            getJobsList().addAll(ReclusteringEngine.process(job, newId));
+
+
+            // create retry job
+            List<Job> newJob = ReclusteringEngine.process(job, newId);
+            newJob.get(0).setPreviousVmId(job.getVmId());
+            getJobsList().addAll(newJob);
 
             // remember which job id's are retries of the other job
             int oldId = job.getCloudletId();

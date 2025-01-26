@@ -133,8 +133,7 @@ public class WorkflowDatacenter extends Datacenter {
             /**
              * Stage-in file && Shared based on the file.system
              */
-            // TODO This is the initial stageIn for all external input files for workflowSims' original SHARED functionality
-            // TODO 	I should likely replace that with my initial data distribution
+            // we disable these jobs in favor of directly placing data in sites
             if (cl.getClassType() == ClassType.STAGE_IN.value) { 
                 stageInFile2FileSystem(cl);
             }
@@ -313,7 +312,18 @@ public class WorkflowDatacenter extends Datacenter {
                          * Picks up the site that is closest
                          */
                         double maxRate = Double.MIN_VALUE;
-                        for (Iterator it = siteList.iterator(); it.hasNext();) { 
+
+                        // check if this site already contains the file
+                        if (siteList.contains(this.getName())) {
+                            ClusterStorage thisStorage = (ClusterStorage) this.getStorageList().get(0);
+                            maxRate = thisStorage.getMaxTransferRate("local");
+                            time += file.getSize() / maxRate;
+                            break;
+                        }
+
+
+                        for (Iterator it = siteList.iterator(); it.hasNext();) {
+
                             
                         	String site = (String) it.next();
                         	

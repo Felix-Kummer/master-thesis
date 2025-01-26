@@ -42,6 +42,7 @@ import org.workflowsim.utils.ReplicaCatalog;
  * @date Apr 9, 2013
  *
  */
+@SuppressWarnings("ALL")
 public final class ClusteringEngine extends SimEntity {
 
     /**
@@ -325,7 +326,10 @@ public final class ClusteringEngine extends SimEntity {
                  * minimum runtime but inputs all input data at the beginning of
                  * the workflow execution
                  */
-                processDatastaging();
+
+
+                // processDatastaging(); We don't need this because we distribute data ourselfs
+
                 sendNow(this.workflowEngineId, WorkflowSimTags.JOB_SUBMIT, getJobList());
                 break;
             case CloudSimTags.END_OF_SIMULATION:
