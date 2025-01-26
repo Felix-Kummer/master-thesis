@@ -1,0 +1,21 @@
+{
+  "workflowPath": "/home/fk/Schreibtisch/master/workflowSim_git/config/dax/test_dax/two_task_memory.xml",
+  "numSites": 2,
+  "strategy": "PART",
+  "taskThreshold": 0,
+  "secThreshold": 0,
+
+  "sites": [
+    { "id":  0, "storage": 5500, "ram": 2048, "mips": 100, "pes": 2, "intraBw":  1.2e7 },
+    { "id":  1, "storage": 1e12, "ram": 2048, "mips": 100, "pes": 2, "intraBw":  1.5e7 }
+
+  ],
+  "files": [
+    { "name": "inputfile", "siteId": 0, "size": 5000 },
+    { "name": "f2", "siteId": 1, "size": 406786 }
+  ],
+
+  "connections": [
+    { "site1Id": 0, "site2Id": 1, "bandwidth": 1.5e7 }
+  ]
+}

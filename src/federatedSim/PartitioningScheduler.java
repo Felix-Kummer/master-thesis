@@ -2,14 +2,12 @@ package federatedSim;
 
 import federatedSim.utils.DisjointSetUnion;
 import org.cloudbus.cloudsim.File;
-import org.cloudbus.cloudsim.Log;
 import org.cloudbus.cloudsim.core.CloudSim;
 import org.workflowsim.*;
 import org.workflowsim.scheduling.BaseSchedulingAlgorithm;
 import org.workflowsim.utils.Parameters;
 import org.workflowsim.utils.ReplicaCatalog;
 
-import javax.management.DynamicMBean;
 import java.util.*;
 
 public class PartitioningScheduler extends BaseSchedulingAlgorithm {
@@ -44,7 +42,18 @@ public class PartitioningScheduler extends BaseSchedulingAlgorithm {
 	// available storage capacity;
 	private double[] availableStorage;
 
-	public PartitioningScheduler() {
+
+	// differences between available storage and predicted site assignment
+	private double[] predictedAvailableStorage;
+
+
+
+
+	@Override
+	public void run() throws Exception {
+
+
+		// ### SETUP ###
 
 		// available vms (= sites)
 		vms = getVmList();
@@ -66,31 +75,41 @@ public class PartitioningScheduler extends BaseSchedulingAlgorithm {
 			availableStorage[i] = storages[i].getAvailableSpace();
 		}
 
-	}
-
-	// differences between available storage and predicted site assignment
-	private double[] predictedAvailableStorage;
-
-
-
-
-	@Override
-	public void run() throws Exception {
-
-
-		// ### SETUP ###
-
 
 		// jobs that we should schedule
 		List<Job> jobList = getCloudletList();
+
+		if (jobList.size() == 0) { // nothing to do
+			return;
+		}
 
 
 		// ### INITIAL PARTITIONING ###
 
 
-		// all start jobs are in the first batch and later batches cannot contain start jobs
-		// -> if one job has no parents -> this is the initial batch
-		if (jobList.get(0).getParentList().size() == 0) {
+		// all start jobs are in the first batch
+		// -> if all jobs have no parents, and the jobs are not retried -> this is the initial batch
+		boolean startBatch = true;
+		for (Job job : jobList) {
+
+			// check if this is a start note
+			if (job.getParentList().size() != 0) {
+				startBatch = false;
+				break;
+			}
+
+			// check if this is retried
+			if (retriedJobsSetUnion.contains(job.getCloudletId())) {
+				startBatch = false;
+				break;
+			}
+		}
+
+		// initial Partitioning
+		if (startBatch) {
+
+			// run sanity checks on sites to ensure that this scheduler can work properly
+			sanityChecks();
 
 			// compute initial partitioning
 			initialPartitioning(jobList);
@@ -127,6 +146,12 @@ public class PartitioningScheduler extends BaseSchedulingAlgorithm {
 
 		// iterate new jobs that should be scheduled
 		for (Job job : jobList) {
+
+			// special case: this is a retried start job
+			if ( job.getParentList().size() == 0 ) {
+				handleRetriedStartJob(job);
+				continue;
+			}
 
 
 			// get best site continuation for job
@@ -220,7 +245,7 @@ public class PartitioningScheduler extends BaseSchedulingAlgorithm {
 		for (Object o : job.getFileList()) {
 			File file = (File) o;
 
-			if (file.getType() == Parameters.FileType.INPUT.value) {
+			if (file.getType() == Parameters.FileType.OUTPUT.value) {
 				continue;
 			}
 
@@ -254,8 +279,8 @@ public class PartitioningScheduler extends BaseSchedulingAlgorithm {
 		}
 
 		// return siteId (vmID) with min transfer costs
-		long minVal = 0;
-		int minID   = 0;
+		long minVal = Long.MAX_VALUE;
+		int minID   = -1;
 		for (int i = 0; i < requiredTransfers.length ; i++){
 			if (requiredTransfers[i] < minVal){
 				minVal = requiredTransfers[i];
@@ -342,63 +367,151 @@ public class PartitioningScheduler extends BaseSchedulingAlgorithm {
 
 	private void initialPartitioning(List<Job> startJobs) {
 		for (Job startJob : startJobs) {
+			int siteId = computeInitPartitioningSiteId(startJob);
+			scheduleJob(startJob, siteId);
+		}
+	}
 
-			// keep track of sizes of input data on sites
-			double[] sizeOnSites = new double[vmNum];
+	// computes the site id for jobs of the initial (blind) partitioning
+	private int computeInitPartitioningSiteId(Job startJob) {
+		// keep track of sizes of input data on sites
+		double[] sizeOnSites = new double[vmNum];
 
-			for (Object o: startJob.getFileList()) {
-				File file = (File) o;
-				if (file.getType() == Parameters.FileType.INPUT.value) {
+		for (Object o: startJob.getFileList()) {
+			File file = (File) o;
+			if (file.getType() == Parameters.FileType.INPUT.value) {
 
-					// get list of storages that contain the file
-					List<String> storageList = ReplicaCatalog.getStorageList(file.getName()); // this contains the names of the storage (we name storages like their datacenters)
+				// get list of storages that contain the file
+				List<String> storageList = ReplicaCatalog.getStorageList(file.getName()); // this contains the names of the storage (we name storages like their datacenters)
 
-					// this is the initial partitioning, file should thus only be present at one site
-					if (storageList.size() != 1) {
-						throw new RuntimeException("ERROR: A file was present at multiple sites after initial stage in to sites, or the file was not correctly stage into a site");
+				String datacenterName = CloudSim.getEntity(storageList.get(0)).getName();
+
+				// get index of this datacenter in our datacenter arrays
+				int index = -1;
+				for (int i = 0; i < vmNum; i++){
+					if (datacenters[i].getName().equals(datacenterName)) {
+						index = i;
+						break;
 					}
-					String datacenterName = CloudSim.getEntity(storageList.get(0)).getName();
-
-					// get index of this datacenter in our datacenter arrays
-					int index = -1;
-					for (int i = 0; i < vmNum; i++){
-						if (datacenters[i].getName().equals(datacenterName)) {
-							index = i;
-							break;
-						}
-					}
-
-					// update size of input data on site
-					sizeOnSites[index] += file.getSize();
-
 				}
+
+				// update size of input data on site
+				sizeOnSites[index] += file.getSize();
+
 			}
+		}
 
-			// determine which site has the most input data of the job, and which site has the most storage available
-			double largestSize = -1;
-			int bestSiteId     = -1;
+		// determine which site has the most input data of the job, and which site has the most storage available
+		double largestSize = -1;
+		int bestSiteId     = -1;
 
-			double mostStorage = -1;
-			int mostStorageId  = -1;
-			for (int i = 0; i< vmNum; i++ ) {
-				if (sizeOnSites[i] > largestSize) {
-					largestSize = sizeOnSites[i];
-					bestSiteId = i;
-				}
-				if (availableStorage[i] > mostStorage){
-					mostStorage = availableStorage[i];
-					mostStorageId = i;
-				}
+		double mostStorage = -1;
+		int mostStorageId  = -1;
+		for (int i = 0; i< vmNum; i++ ) {
+			if (sizeOnSites[i] > largestSize) {
+				largestSize = sizeOnSites[i];
+				bestSiteId = i;
 			}
+			if (availableStorage[i] > mostStorage){
+				mostStorage = availableStorage[i];
+				mostStorageId = i;
+			}
+		}
 
-			//  no input data -> schedule to site with most storage
-			if (bestSiteId == -1) {
-				scheduleJob(startJob, mostStorageId);
+		//  no input data -> schedule to site with most storage
+		if (bestSiteId == -1) {
+			return mostStorageId;
 
 			// otherwise, schedule to size where most input data resides
-			} else {
-				scheduleJob(startJob, bestSiteId);
+		} else {
+			return bestSiteId;
+		}
+	}
+
+	// derive a site Id for an retried start job
+	private void handleRetriedStartJob(Job startJob) {
+
+		// this should be a retried job
+		if (!retriedJobsSetUnion.contains(startJob.getCloudletId())) {
+			throw new RuntimeException("Start job " + startJob.getTaskList().get(0).getType() + " was not retried, but was submitted as a regular job in scheduling.");
+		}
+
+
+		// get initial site
+		int previousVmId = startJob.getPreviousVmId();
+
+		if (previousVmId == -1) {
+			throw new RuntimeException("Retried start job does not contain its previous vm's id");
+		}
+
+		// get sites that this job has exceeded
+		Integer originalId = retriedJobsSetUnion.find(startJob.getCloudletId());
+		Set<Integer> exceededDatacenterIds = exceededMap.get(originalId);
+
+		int bestId = -1;
+		double bestStorage = Double.MIN_VALUE;
+		for (int i = 0; i < vmNum; i++ ) {
+
+			// site was exceeded, not an option
+			if (exceededDatacenterIds.contains(datacenterIds[i])) {
+				continue;
 			}
+
+
+			// check if this has better storage
+			if (availableStorage[i] > bestStorage){
+				bestId = i;
+				bestStorage = availableStorage[i];
+			}
+
+		}
+
+		// if no site was found -> error
+		if (bestId == -1) {
+			throw new RuntimeException("An initial job was not able to be executed on any site");
+		}
+
+		// update shift array for start node
+		DynamicAbstractDag.updateShiftArray(startJob,bestId, previousVmId);
+
+		// compute job size (we now input size and estimate outputs)
+		double jobSize = DynamicAbstractDag.getEstimatedOutputSize(startJob);
+		for (Object o : startJob.getFileList()) {
+			File file = (File) o;
+			if ( file.getType() == Parameters.FileType.INPUT.value) {
+				jobSize += file.getSize();
+			}
+		}
+
+
+		// update available storage
+		predictedAvailableStorage[bestId]       += jobSize;
+		predictedAvailableStorage[previousVmId] -= jobSize;
+
+		// schedule Job
+		scheduleJob(startJob, bestId);
+
+	}
+
+	private void sanityChecks() {
+		// sanity checks on vm's and datacenters
+		try {
+			for (int j = 0; j < vms.size(); j++){
+				WorkflowDatacenter workflowDatacenter = datacenters[j];
+				if (!workflowDatacenter.getName().equals("Datacenter_" + j)) {
+					throw new Exception("Datacenter has wrong name, that does not comply with its creation id");
+				}
+				if (workflowDatacenter.getVmList().size() != 1) {
+					throw new Exception("Each site should have exactly one vm");
+				}
+
+				if (workflowDatacenter.getVmList().get(0).getId() != j) {
+					throw new Exception("Wrong vm id in datacenter");
+				}
+			}
+
+		} catch (Exception e) {
+			throw new RuntimeException("Sanity checks after site creation failed, reason: " + e.getMessage());
 		}
 	}
 }

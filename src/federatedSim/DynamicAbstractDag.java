@@ -443,17 +443,8 @@ public class DynamicAbstractDag {
 
 			// only compute new estimates if this is not a start node
 			if (parentSize != 0) {
-
-				// first parent propagated
-				if (propagationCount == 1) {
-					taskEstimates = newTaskNumberEstimates;
-
-				} else if ( propagationCount < parentSize) {
-					// compare known with new estimates, keep higher number
-					compareTaskEstimates(newTaskNumberEstimates, transferSizes);
-
 				// last parent propagated  -> this can propagate
-				} else if (propagationCount == parentSize) {
+				if (propagationCount == parentSize) {
 					// compare known with new estimates, keep higher number
 					compareTaskEstimates(newTaskNumberEstimates, transferSizes);
 
@@ -462,19 +453,29 @@ public class DynamicAbstractDag {
 					highestTransferSizes = new double[Parameters.getVmNum()];
 
 					// add shift offset from actual partitioning
-					for (int i = 0; i < Parameters.getVmNum(); i++){
+					for (int i = 0; i < Parameters.getVmNum(); i++) {
 						taskEstimates[i] += shiftArray[i];
 					}
-
 					// propagate through child edges
 					propagateToChildren(taskEstimates);
 
+				// first parent propagated
+				} else if (propagationCount == 1) {
+					taskEstimates = newTaskNumberEstimates;
+
+				} else if ( propagationCount < parentSize) {
+					// compare known with new estimates, keep higher number
+					compareTaskEstimates(newTaskNumberEstimates, transferSizes);
 				} else {
 					throw new RuntimeException("Error in propagating task estimates");
 				}
 
 			// special case: starter nodes
 			} else {
+				// add shift offset, this is possible if a start job was retried
+				for (int i = 0; i < Parameters.getVmNum(); i++) {
+					taskEstimates[i] += shiftArray[i];
+				}
 				propagateToChildren(taskEstimates); // this is set once for initial nodes and can't change
 			}
 
