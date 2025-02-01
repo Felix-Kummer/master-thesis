@@ -1,6 +1,9 @@
 package federatedSim;
 
 import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.PrintWriter;
 import java.text.DecimalFormat;
 import java.util.*;
 
@@ -33,9 +36,26 @@ public class FederatedTwoSites {
 	public static void main(String[] args) {
 
 		// parse config File
-		if (args.length != 1) {
+		if (args.length < 1) {
 			throw new RuntimeException("Need a parameter config file");
 		}
+
+		if (args.length >= 2) {
+			try {
+				FileOutputStream logfile = new FileOutputStream(args[1]);
+				Log.setOutput(logfile);
+			} catch (FileNotFoundException e) {
+				throw new RuntimeException(e);
+			}
+		}
+
+		String resultsPath = null;
+		if (args.length >= 3) {
+			resultsPath = args[2];
+		}
+
+
+
 
 		configParser.parse(args[0]);
 
@@ -109,8 +129,6 @@ public class FederatedTwoSites {
 				// Create a WorkflowPlanner with one scheduler.
 				WorkflowPlanner wfPlanner = new WorkflowPlanner("planner_0", 1);
 
-				wfPlanner.getClusteringEngine().getTaskList();
-
 				// Create a WorkflowEngine
 				WorkflowEngine wfEngine = wfPlanner.getWorkflowEngine();
 
@@ -145,7 +163,9 @@ public class FederatedTwoSites {
 
 	            CloudSim.stopSimulation();
 	            
-	            printJobList(outputList0); // TODO maybe change that for better logging/measurements
+	            printJobList(outputList0);
+
+				writeResults(resultsPath, outputList0);
 
 
 				Log.printLine("END");
@@ -254,7 +274,7 @@ public class FederatedTwoSites {
 				ReplicaCatalog.addStorageList(file.getName(), s1.getName());
 				try {
 					s1.addFile(new org.cloudbus.cloudsim.File(file.getName(), file.getSize()));
-				} catch (ParameterException e) {
+				} catch (RuntimeException | ParameterException e) {
 					e.printStackTrace();
 					throw new RuntimeException("cannot fit initial data distribution into sites");
 				}
@@ -329,4 +349,28 @@ public class FederatedTwoSites {
         }
 
     }
+
+	private static void writeResults(String resultsPath, List<Job> jobs){
+		double startTime = jobs.get(0).getExecStartTime();
+		double finishTime = jobs.get(jobs.size() - 1).getFinishTime();
+		double makespan = finishTime-startTime;
+
+		if (resultsPath == null) {
+			Log.printLine("Results:");
+			Log.printLine("Data transferred between sites:" + Parameters.getTotalTransferredData());
+			Log.printLine("Time for transferring data between sites:" + Parameters.getTotalDataTransferTime());
+			Log.printLine("Makespan:" + makespan);
+		}
+		else {
+			try (PrintWriter writer = new PrintWriter(resultsPath)) {
+				writer.println("TransferredData," + Parameters.getTotalTransferredData());
+				writer.println("TransferTime," + Parameters.getTotalDataTransferTime());
+				writer.println("Makespan," + makespan);
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
+
+		}
+
+	}
 }

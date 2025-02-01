@@ -1,6 +1,7 @@
 package federatedSim;
 
 import java.util.*;
+import java.util.Arrays;
 
 import org.cloudbus.cloudsim.File;
 import org.workflowsim.Job;
@@ -87,7 +88,7 @@ public class DynamicAbstractDag {
 	 * Update dynamic 1. output sizes, 2. dependency structures, 3. predicted task counts
 	 */
 	public static void updateDynamicInformation(List<Job> receivedJobList, List<Job> newJobs) {
-		updateOutputSizes(receivedJobList); // updated based on finished/received jobs
+		processFinishedJobs(receivedJobList); // updated based on finished/received jobs
 
 		processNewJobs(newJobs); // update input file sizes and dependency structures
 
@@ -95,17 +96,16 @@ public class DynamicAbstractDag {
 		for (DynamicAbstractNode startNode : startNodes) {
 			startNode.propagate(new int[0], new double[0]); // empty array because these are start nodes and there is no basis to propaget from
 		}
-
-
-
 	}
 
 	// store the length of the previous received list, using this, we can determine task that finished after the last
 	// update of dynamic information
 	private static int numReceivedTasks = 0;
 
-	// update dynamic output size of tasks
-	private static void updateOutputSizes(List<Job> receivedJobList) {
+	// update dynamic output size of finished tasks
+	// also updated the dependency structure from finished jobs to their children
+	// we can derive the children here, because these jobs have been processed by the WfEngine and we therefore now know which children it has
+	private static void processFinishedJobs(List<Job> receivedJobList) {
 
 		int newNumReceivedTasks = receivedJobList.size();
 
@@ -133,6 +133,30 @@ public class DynamicAbstractDag {
 
 			// update average output size
 			node.updateAverageOutputSize(outputSize);
+
+			// remember number child jobs generated from this jobs by abstract type
+			HashMap<String, Integer> childCount = new HashMap<>();
+
+			// iterate child nodes
+			for (Task c : receivedJobList.get(i).getChildList()) {
+				// get child job and name
+				Job childJob = (Job) c;
+				String childName = childJob.getTaskList().get(0).getType();
+
+				// increase count
+				childCount.put(childName, childCount.getOrDefault(childName, 0) + 1);
+			}
+
+			// iterate childCounts
+			for (String childName : childCount.keySet()) {
+
+				// get edge from finished job to children
+				DynamicAbstractEdge childEdge = node.getChildrenEdges().get(childName);
+
+				// update dependency structure
+				childEdge.updateChildren2ParentsDependencyType(childCount.get(childName));
+			}
+
 		}
 
 		// update received job count
@@ -173,7 +197,7 @@ public class DynamicAbstractDag {
 				File parentOutputFile = (File) o;
 				String parentOutputFileName = parentOutputFile.getName();
 				if (parentOutputFile.getType() == Parameters.FileType.OUTPUT.value && inputFiles.containsKey(parentOutputFileName)) { // is this file an output of parent that is an input of the current job
-					transferSizes.put(parentNode, transferSizes.getOrDefault(parentNode, 0.0 ) + inputFiles.get(parentOutputFile));
+					transferSizes.put(parentNode, transferSizes.getOrDefault(parentNode, 0.0 ) + inputFiles.get(parentOutputFileName));
 				}
 			}
 		}
@@ -181,8 +205,8 @@ public class DynamicAbstractDag {
 		// update dependency structure
 		for (DynamicAbstractNode parentNode : deps.keySet()){
 			DynamicAbstractEdge edge = parentNode.getChildrenEdges().get(childJobNode.getName());
-			edge.updateDependencyType(deps.get(parentNode));
-			edge.updateTransferSize(transferSizes.get(parentNode));
+			edge.updateParents2ChildrenDependencyType(deps.get(parentNode));
+			edge.updateTransferSize(transferSizes.getOrDefault(parentNode, 0.0), deps.get(parentNode));
 		}
 	}
 
@@ -472,11 +496,16 @@ public class DynamicAbstractDag {
 
 			// special case: starter nodes
 			} else {
-				// add shift offset, this is possible if a start job was retried
+
+				// we can't modify task arrays directly here, as this would change it every iteration
+				// we should only modify the shiftArray for starter jobs
+				int [] estimates = Arrays.copyOf(taskEstimates, taskEstimates.length);
+
+				// add shift offset, this being != 0 is possible if a start job was retried
 				for (int i = 0; i < Parameters.getVmNum(); i++) {
-					taskEstimates[i] += shiftArray[i];
+					estimates[i] += shiftArray[i];
 				}
-				propagateToChildren(taskEstimates); // this is set once for initial nodes and can't change
+				propagateToChildren(estimates);
 			}
 
 		}
@@ -607,7 +636,7 @@ public class DynamicAbstractDag {
 
 			// add children's subtree sizes
 			for (DynamicAbstractEdge childrenEdge : childrenEdges.values()){
-				size += childrenEdge.getDependencyType() * childrenEdge.getNode2().getSubtreeSize(knownNames);
+				size += childrenEdge.getChildrenToParentsDependencyType() * childrenEdge.getNode2().getSubtreeSize(knownNames);
 			}
 			return size;
 		}
@@ -643,23 +672,37 @@ public class DynamicAbstractDag {
 		public DynamicAbstractNode getNode2() { return node2; }
 
 		// type of dependency,
-		// value 1.0 == one child has one parent
-		// value 2.0 == one child has two parents
-		private double dependencyType = 1.0;
+		// index 0: average parents per one children
+		// index 1: average children per one parent
+		private double[] dependencyTypes = {1.0, 1.0};
 
-		private int dependencyCount = 0;
+		// counts for running averages, indexes relate to the same relationship as in dependencyTypes
+		private int[] dependencyCounts = {0 ,0};
 
-		public void updateDependencyType(int count) {
-			dependencyCount +=count;
-			dependencyType = ((dependencyType * (dependencyCount-count)) + count)/dependencyCount;
+		public void updateParents2ChildrenDependencyType(int count) {
+			dependencyCounts[0] +=1;
+			dependencyTypes[0] = ((dependencyTypes[0] * (dependencyCounts[0]-1)) + count)/dependencyCounts[0];
+		}
+
+		public void updateChildren2ParentsDependencyType(int count) {
+			dependencyCounts[1] +=1;
+			dependencyTypes[1] = ((dependencyTypes[1] * (dependencyCounts[1]-1)) + count)/dependencyCounts[1];
+		}
+
+		public double getParentsToChildrenDependencyType() {
+			return dependencyTypes[0];
+		}
+
+		public double getChildrenToParentsDependencyType() {
+			return dependencyTypes[1];
 		}
 
 		private double transferSize = 0.0;
 
 		private int transferSizeUpdateCount = 0;
-		public void updateTransferSize(double transferSizeUpdate) {
-			transferSizeUpdateCount ++;
-			transferSize = ((transferSize * (transferSizeUpdateCount-1)) + transferSizeUpdate)/transferSizeUpdateCount;
+		public void updateTransferSize(double transferSizeUpdate, int count) {
+			transferSizeUpdateCount += count;
+			transferSize = ((transferSize * (transferSizeUpdateCount-count)) + transferSizeUpdate)/transferSizeUpdateCount;
 
 		}
 
@@ -668,17 +711,15 @@ public class DynamicAbstractDag {
 			int[] correctedEstimates = new int[estimates.length];
 			double[] transferSizes = new double[estimates.length];
 			for (int i = 0; i < estimates.length; i++ ) {
-				correctedEstimates[i] = (int) Math.round(estimates[i] * dependencyType);
-				transferSizes[i] = transferSize * dependencyType;
+				correctedEstimates[i] = (int) Math.round(estimates[i] / dependencyTypes[0] * dependencyTypes[1]);
+				transferSizes[i] = transferSize * dependencyTypes[1];
 			}
 
 
 			node2.propagate(correctedEstimates, transferSizes);
 		}
 
-		public double getDependencyType() {
-			return dependencyType;
-		}
+
 		
 	}
 	

@@ -127,7 +127,7 @@ public class PartitioningScheduler extends BaseSchedulingAlgorithm {
 
 
 		// update dynamic DAG
-		DynamicAbstractDag.updateDynamicInformation(jobList, getReceivedList());
+		DynamicAbstractDag.updateDynamicInformation(getReceivedList(), jobList);
 
 
 		// ### SCHEDULING (PARTITIONING) ###
@@ -302,6 +302,9 @@ public class PartitioningScheduler extends BaseSchedulingAlgorithm {
 	// best site = has enough space for the predicted subtree and highest bandwidth from continuation site
 	// exceededDatacenterIds contains the Ids of datacenter that prior repetitions of this job have exceeded
 	private void moveJob(Job job, int continuationSiteId, Set<Integer> exceededDatacenterIds ) {
+		// get sites that would have the capacity to store the inputs of the job that are on other sites
+		Set<Integer> sitesThatFitInputs = getSitesThatCanFitInputs(job, exceededDatacenterIds);
+
 
 		// get size of job's subtree
 		double parentSubtreeSize = DynamicAbstractDag.getEstimatedSize4SubDAG(job);
@@ -312,6 +315,7 @@ public class PartitioningScheduler extends BaseSchedulingAlgorithm {
 		for (int i = 0; i < vmNum; i++) {
 			// check if site can fit job's subtree and if the bandwidth is better than current best
 			if (i != continuationSiteId && 								  // check if site is continuation -> skip site
+					sitesThatFitInputs.contains(i) &&                     // check that this site can at least fit the input files
 					!exceededDatacenterIds.contains(datacenterIds[i]) &&  // check if job has previously exceeded site -> skip site
 					predictedAvailableStorage[i] > 0 &&					  // check if site is predicted to have storage
 					parentSubtreeSize < predictedAvailableStorage[i] ) {  // check if the site is predicted to have enough storage
@@ -339,6 +343,7 @@ public class PartitioningScheduler extends BaseSchedulingAlgorithm {
 			double bestAvailableStorage = -1;
 			for (int i = 0; i < vmNum; i++ ){
 				if (predictedAvailableStorage[i] > bestAvailableStorage &&     // more space than previous candidate?
+						sitesThatFitInputs.contains(i) &&                      // check that this site can at least fit the input files
 						!exceededDatacenterIds.contains(datacenterIds[i])) {   // still can't reschedule to previously exceed storage
 					bestAvailableStorage = predictedAvailableStorage[i];
 					siteId = i;
@@ -348,7 +353,7 @@ public class PartitioningScheduler extends BaseSchedulingAlgorithm {
 
 		// all sites were previously exceeded -> throw Failure to prevent infinite loop for this job
 		if (siteId == -1) {
-			throw new RuntimeException("Job " + job.getTaskList().get(0).getType() + " has exceeded all sides storages and cannot be scheduled, halting simulation");
+			throw new RuntimeException("Job " + job.getTaskList().get(0).getType() + " has exceeded all sides storages and cannot be scheduled, or input files fit into no storage halting simulation");
 		}
 
 		// move job to new site
@@ -377,9 +382,13 @@ public class PartitioningScheduler extends BaseSchedulingAlgorithm {
 		// keep track of sizes of input data on sites
 		double[] sizeOnSites = new double[vmNum];
 
+		// keep track of total input size
+		double totalInputSize = 0;
+
 		for (Object o: startJob.getFileList()) {
 			File file = (File) o;
 			if (file.getType() == Parameters.FileType.INPUT.value) {
+				totalInputSize += file.getSize();
 
 				// get list of storages that contain the file
 				List<String> storageList = ReplicaCatalog.getStorageList(file.getName()); // this contains the names of the storage (we name storages like their datacenters)
@@ -402,20 +411,28 @@ public class PartitioningScheduler extends BaseSchedulingAlgorithm {
 		}
 
 		// determine which site has the most input data of the job, and which site has the most storage available
+		// constraint by the sites that have enough storage to fit the input data
 		double largestSize = -1;
 		int bestSiteId     = -1;
 
 		double mostStorage = -1;
 		int mostStorageId  = -1;
 		for (int i = 0; i< vmNum; i++ ) {
-			if (sizeOnSites[i] > largestSize) {
-				largestSize = sizeOnSites[i];
-				bestSiteId = i;
+			if (availableStorage[i] > totalInputSize) {
+				if (sizeOnSites[i] > largestSize) {
+					largestSize = sizeOnSites[i];
+					bestSiteId = i;
+				}
+				if (availableStorage[i] > mostStorage){
+					mostStorage = availableStorage[i];
+					mostStorageId = i;
+				}
 			}
-			if (availableStorage[i] > mostStorage){
-				mostStorage = availableStorage[i];
-				mostStorageId = i;
-			}
+
+		}
+
+		if (bestSiteId == -1 && mostStorageId == -1) {
+			throw new RuntimeException("No site could fit all input data of a start job");
 		}
 
 		//  no input data -> schedule to site with most storage
@@ -492,6 +509,41 @@ public class PartitioningScheduler extends BaseSchedulingAlgorithm {
 		scheduleJob(startJob, bestId);
 
 	}
+
+	// this helper function returns the sites which could store all the input data of job that would be required to be moved there
+	// this is important to avoid scheduling tasks to sites where the inputs would already exceed the available storage
+	// sites that have already been exceeded by this job (exceededDatacenterIds) can be ignored
+	private Set<Integer> getSitesThatCanFitInputs(Job job, Set<Integer> exceededDatacenterIds ) {
+		// store how much data we would need to transfer to sites
+		double[] siteTransfers = new double[vmNum];
+
+		// compute required transfers
+		for (Object o : job.getFileList()) {
+			File file = (File) o;
+			if (file.getType() == Parameters.FileType.INPUT.value) {
+				for (int i = 0; i < vmNum; i++) {
+					if (exceededDatacenterIds.contains(datacenterIds[i])) {
+						siteTransfers[i] = -1;
+					}
+					if (!storages[i].contains(file.getName())) {
+						siteTransfers[i] += file.getSize();
+					}
+				}
+			}
+		}
+
+		// get which site are eligible
+		Set<Integer> eligibleSites = new HashSet<>();
+		for (int id = 0; id < vmNum; id++) {
+			if (siteTransfers[id] != -1 && siteTransfers[id] < availableStorage[id]){
+				eligibleSites.add(id);
+			}
+		}
+
+		return eligibleSites;
+	}
+
+
 
 	private void sanityChecks() {
 		// sanity checks on vm's and datacenters
