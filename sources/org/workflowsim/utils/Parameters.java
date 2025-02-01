@@ -275,7 +275,27 @@ public class Parameters {
         }
     }
 
-   
+
+    // stores the total amount of data transferred between sites
+    public static double totalTransferredData;
+    public static double getTotalTransferredData() {
+        return totalTransferredData;
+    }
+
+    public static void setTotalTransferredData(double totalTransferredData) {
+        Parameters.totalTransferredData = totalTransferredData;
+    }
+
+    // time spend for transferring files between sites
+    public static double totalDataTransferTime;
+
+    public static double getTotalDataTransferTime() {
+        return totalDataTransferTime;
+    }
+
+    public static void setTotalDataTransferTime(double totalDataTransferTime) {
+        Parameters.totalDataTransferTime = totalDataTransferTime;
+    }
 
     /**
      * Gets the DAX path

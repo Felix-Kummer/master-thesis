@@ -305,7 +305,7 @@ public class WorkflowScheduler extends DatacenterBroker {
             lastPartitioningTime = CloudSim.clock();
             
         } catch (ThresholdException e) {
-        	Log.printLine(e.getMessage()); // TODO maybe enrich this to log threshold behavior
+        	//Log.printLine(e.getMessage()); // TODO maybe enrich this to log threshold behavior
         } catch (Exception e) {
             Log.printLine("Error in configuring scheduler_method");
             e.printStackTrace();
@@ -414,8 +414,8 @@ public class WorkflowScheduler extends DatacenterBroker {
         // if this is a retry, we need to get the first id of this job
         // this work because of the way we store job Ids
         // the first occurrence of a (multiple times) retried job will always be the representative
-        if (retriedJobIdsSetUnion.contains(senderId)) {
-            senderId = retriedJobIdsSetUnion.find(senderId);
+        if (retriedJobIdsSetUnion.contains(cloudletId)) {
+            cloudletId = retriedJobIdsSetUnion.find(cloudletId);
         }
 
         // bookkeeping for exceeded storages

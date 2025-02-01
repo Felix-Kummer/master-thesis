@@ -350,6 +350,10 @@ public class WorkflowDatacenter extends Datacenter {
                         thisStorage.addFile(file);
                         
                         time += file.getSize() / maxRate;
+
+                        Parameters.setTotalTransferredData(Parameters.getTotalTransferredData() + file.getSize());
+                        Parameters.setTotalDataTransferTime(Parameters.getTotalDataTransferTime() + time);
+
                         break;
                     case LOCAL:
 
