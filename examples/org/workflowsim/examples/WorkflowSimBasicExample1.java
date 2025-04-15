@@ -90,7 +90,7 @@ public class WorkflowSimBasicExample1 {
     public static void main(String[] args) {
 
 
-       try {
+        try {
             // First step: Initialize the WorkflowSim package. 
 
             /**
@@ -100,8 +100,7 @@ public class WorkflowSimBasicExample1 {
              */
             int vmNum = 20;//number of vms;
             
-            // String daxPath = "/home/fk/Schreibtisch/master/workflowSim_git/config/dax/Montage_100.xml";
-            String daxPath = "/home/fk/Schreibtisch/master/workflowSim_git/config/dax/Montage_25.xml";
+            String daxPath = ""; // path to .dax file
             if(daxPath == null){
                 Log.printLine("[DONE]  Warning: Please replace daxPath with the physical path in your working environment!");
                 return;

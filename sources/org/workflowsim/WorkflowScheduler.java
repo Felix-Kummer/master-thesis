@@ -179,11 +179,11 @@ public class WorkflowScheduler extends DatacenterBroker {
                 algorithm = new RoundRobinSchedulingAlgorithm();
                 break;
             case DYNAMIC_RND:
-            	algorithm = new RandomPartitioningScheduler();
-            	break;
+                algorithm = new RandomPartitioningScheduler();
+                break;
             case DYNAMIC_PART:
-            	algorithm = new PartitioningScheduler();
-            	break;
+                algorithm = new PartitioningScheduler();
+                break;
             default:
                 algorithm = new StaticSchedulingAlgorithm();
                 break;
@@ -289,23 +289,22 @@ public class WorkflowScheduler extends DatacenterBroker {
         	if (Parameters.thresholds_enabled()) { // Threshold-based Scheduling
         		if (getCloudletList().size() < Parameters.getTASK_THRESHOLD()) { // check task threshold
         			if (CloudSim.clock() - lastPartitioningTime < Parameters.getSEC_THRESHOLD()) { // check time threshold
-        				
-        				// send message to check thresholds again with delay defined in Parameters
-        				schedule(
-        						this.getId(), 
-        						Parameters.getTHRESHOLD_CHECKING_INTERVAL(), 
-        						WorkflowSimTags.CLOUDLET_UPDATE);
-        				
-        				// throw an exception to signal that no threshold was surpassed
-        				throw new ThresholdException();
-        			}
-        		}
-        	}
+                        // send message to check thresholds again with delay defined in Parameters
+                        schedule(
+                            this.getId(), 
+                            Parameters.getTHRESHOLD_CHECKING_INTERVAL(), 
+                            WorkflowSimTags.CLOUDLET_UPDATE
+                        );
+                        // throw an exception to signal that no threshold was surpassed
+                        throw new ThresholdException();
+                    }
+                }
+            }
             scheduler.run();
             lastPartitioningTime = CloudSim.clock();
             
         } catch (ThresholdException e) {
-        	//Log.printLine(e.getMessage()); // TODO maybe enrich this to log threshold behavior
+        	//Log.printLine(e.getMessage());
         } catch (Exception e) {
             Log.printLine("Error in configuring scheduler_method");
             e.printStackTrace();
