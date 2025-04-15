@@ -63,37 +63,37 @@ def get_real_workflows():
 
     wf = dict()
     wf['name'] = "CyberShake_30"
-    wf['path'] = '../../workflowSim_git/config/dax/CyberShake_30.xml'
+    wf['path'] = '../../config/dax/CyberShake_30.xml'
     wfs.append(wf)
 
     wf = dict()
     wf['name'] = "CyberShake_50"
-    wf['path'] = '../../workflowSim_git/config/dax/CyberShake_50.xml'
+    wf['path'] = '../../config/dax/CyberShake_50.xml'
     wfs.append(wf)
 
     wf = dict()
     wf['name'] = "CyberShake_100"
-    wf['path'] = '../../workflowSim_git/config/dax/CyberShake_100.xml'
+    wf['path'] = '../../config/dax/CyberShake_100.xml'
     wfs.append(wf)
 
     wf = dict()
     wf['name'] = "CyberShake_1000"
-    wf['path'] = '../../workflowSim_git/config/dax/CyberShake_1000.xml'
+    wf['path'] = '../../config/dax/CyberShake_1000.xml'
     wfs.append(wf)
 
     wf = dict()
     wf['name'] = "Epigenomics_24"
-    wf['path'] = '../../workflowSim_git/config/dax/Epigenomics_24.xml'
+    wf['path'] = '../../config/dax/Epigenomics_24.xml'
     wfs.append(wf)
 
     wf = dict()
     wf['name'] = "floodplain"
-    wf['path'] = '../../workflowSim_git/config/dax/floodplain.xml'
+    wf['path'] = '../../config/dax/floodplain.xml'
     wfs.append(wf)
 
     wf = dict()
     wf['name'] = "Sipht_30.xml"
-    wf['path'] = '../../workflowSim_git/config/dax/Sipht_30.xml'
+    wf['path'] = '../../config/dax/Sipht_30.xml'
     wfs.append(wf)
 
     return wfs
@@ -309,7 +309,7 @@ if __name__ == "__main__":
     java_home = "/usr/lib/jvm/jdk1.8.0_202"
     env['JAVA_HOME'] = java_home
     env['PATH']      = f"{java_home}/bin:" + env['PATH']
-    java_cp = "../lib/*:../bin:../../workflowSim_git/lib/*"
+    java_cp = "../lib/*:../bin:../../lib/*"
 
     # final result path
     final_result_file = os.getcwd() + "/grid_search_final_results.csv"
