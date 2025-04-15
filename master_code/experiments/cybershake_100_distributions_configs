@@ -1,0 +1,26 @@
+\begin{tabular}{lrrr}
+\toprule
+CONFIG & DISTRIBUTION & mean & std \\
+\midrule
+site\_conf\_2\_site & 0 & 0.508606 & 0.000000 \\
+site\_conf\_2\_site & 1 & 0.508635 & 0.000000 \\
+site\_conf\_2\_site & 2 & 0.452087 & 0.000000 \\
+site\_conf\_2\_site & 3 & 0.227011 & 0.000000 \\
+site\_conf\_2\_site & 4 & 0.170733 & 0.000000 \\
+site\_conf\_3\_site\_large & 0 & 0.171179 & 0.000000 \\
+site\_conf\_3\_site\_large & 1 & 0.396497 & 0.000000 \\
+site\_conf\_3\_site\_large & 2 & 0.284597 & 0.000000 \\
+site\_conf\_3\_site\_large & 3 & 0.283880 & 0.000000 \\
+site\_conf\_3\_site\_large & 4 & 0.114184 & 0.000000 \\
+site\_conf\_3\_site\_small & 0 & 0.397555 & 0.000000 \\
+site\_conf\_3\_site\_small & 1 & 0.677130 & 0.000000 \\
+site\_conf\_3\_site\_small & 2 & 0.621854 & 0.000000 \\
+site\_conf\_3\_site\_small & 3 & 0.396773 & 0.000000 \\
+site\_conf\_3\_site\_small & 4 & 0.453377 & 0.000000 \\
+site\_conf\_4\_site & 0 & 0.509806 & 0.000000 \\
+site\_conf\_4\_site & 1 & 0.452995 & 0.000000 \\
+site\_conf\_4\_site & 2 & 0.396128 & 0.000000 \\
+site\_conf\_4\_site & 3 & 0.453271 & 0.000000 \\
+site\_conf\_4\_site & 4 & 0.508089 & 0.000000 \\
+\bottomrule
+\end{tabular}
