@@ -586,8 +586,8 @@ public class DynamicAbstractDag {
 		// helper function to propagate values to children
 		private void propagateToChildren(int[] estimates) {
 			// update size estimates along the way (required because the Partitioner may query size estimates after every full DAG propagation)
-			 double inputSize  = averageInputSize;
-			 double outputSize = averageOutputSize;
+			double inputSize  = averageInputSize;
+			double outputSize = averageOutputSize;
 
 			// special case: we don't have input estimates yet
 			if (submittedCount == 0) {

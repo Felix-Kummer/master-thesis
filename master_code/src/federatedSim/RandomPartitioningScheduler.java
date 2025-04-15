@@ -100,8 +100,8 @@ public class RandomPartitioningScheduler extends BaseSchedulingAlgorithm {
 			// vm = vms.get(1);
 
 			vm.setState(WorkflowSimTags.VM_STATUS_BUSY);
-	        cloudlet.setVmId(vm.getId());
-	        getScheduledList().add(cloudlet);
+			cloudlet.setVmId(vm.getId());
+			getScheduledList().add(cloudlet);
 		}
 
 	}

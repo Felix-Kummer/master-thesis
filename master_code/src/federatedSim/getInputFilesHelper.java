@@ -40,114 +40,114 @@ public class getInputFilesHelper {
 		}
 
 		try {
+		
+		// Load workflow
+
+			String daxPath = args[0];
+			if(daxPath == null){
+				Log.printLine("[DONE]  Warning: Please replace daxPath with the physical path in your working environment!");
+				return;
+			}
+			File daxFile = new File(daxPath);
+			if(!daxFile.exists()){
+				Log.printLine("Warning: Please replace daxPath with the physical path in your working environment!");
+				return;
+			}
+
 			
-			// Load workflow
 
-			 String daxPath = args[0];
-	            if(daxPath == null){
-	                Log.printLine("[DONE]  Warning: Please replace daxPath with the physical path in your working environment!");
-	                return;
-	            }
-	            File daxFile = new File(daxPath);
-	            if(!daxFile.exists()){
-	                Log.printLine("Warning: Please replace daxPath with the physical path in your working environment!");
-	                return;
-	            }
-
-	            
-
-				Parameters.SchedulingAlgorithm sch_method = Parameters.SchedulingAlgorithm.DYNAMIC_RND;
+			Parameters.SchedulingAlgorithm sch_method = Parameters.SchedulingAlgorithm.DYNAMIC_RND;
 
 
-				// we dynamically schedule, thus no planner
-	            Parameters.PlanningAlgorithm pln_method = Parameters.PlanningAlgorithm.INVALID; 
-	            
+			// we dynamically schedule, thus no planner
+			Parameters.PlanningAlgorithm pln_method = Parameters.PlanningAlgorithm.INVALID; 
+			
 
-	            ReplicaCatalog.FileSystem file_system = ReplicaCatalog.FileSystem.SHARED; 
-	            
+			ReplicaCatalog.FileSystem file_system = ReplicaCatalog.FileSystem.SHARED; 
+			
 
-				// No overheads
-	            OverheadParameters op = new OverheadParameters(0, null, null, null, null, 0);;
-	            
-	            // No Clustering
-	            ClusteringParameters.ClusteringMethod method = ClusteringParameters.ClusteringMethod.NONE;
-	            ClusteringParameters cp = new ClusteringParameters(0, 0, method, null);
-	            
+			// No overheads
+			OverheadParameters op = new OverheadParameters(0, null, null, null, null, 0);;
+			
+			// No Clustering
+			ClusteringParameters.ClusteringMethod method = ClusteringParameters.ClusteringMethod.NONE;
+			ClusteringParameters cp = new ClusteringParameters(0, 0, method, null);
+			
 
-				// Initialize static parameters
-	            Parameters.init(NUM_SITES, daxPath, null,
-	                    null, op, cp, sch_method, pln_method,
-	                    null, 0);
-	            ReplicaCatalog.init(file_system);
+			// Initialize static parameters
+			Parameters.init(NUM_SITES, daxPath, null,
+					null, op, cp, sch_method, pln_method,
+					null, 0);
+			ReplicaCatalog.init(file_system);
 
-	            
+			
 
-	            
-	            // before creating any entities.
-	            int num_user = 1;   // number of grid users
-	            Calendar calendar = Calendar.getInstance(); 
-	            boolean trace_flag = false;  // mean trace events 
-	            
-	            // Initialize the CloudSim library
-	            CloudSim.init(num_user, calendar, trace_flag);
+			
+			// before creating any entities.
+			int num_user = 1;   // number of grid users
+			Calendar calendar = Calendar.getInstance(); 
+			boolean trace_flag = false;  // mean trace events 
+			
+			// Initialize the CloudSim library
+			CloudSim.init(num_user, calendar, trace_flag);
 
-				// Create a WorkflowPlanner with one scheduler.
-				WorkflowPlanner wfPlanner = new WorkflowPlanner("planner_0", 1);
-
-
-				// Create a WorkflowEngine
-				WorkflowEngine wfEngine = wfPlanner.getWorkflowEngine();
+			// Create a WorkflowPlanner with one scheduler.
+			WorkflowPlanner wfPlanner = new WorkflowPlanner("planner_0", 1);
 
 
-	            CloudSim.startSimulation();
+			// Create a WorkflowEngine
+			WorkflowEngine wfEngine = wfPlanner.getWorkflowEngine();
 
 
-	            List<Job> jobList = wfEngine.getJobsList();
+			CloudSim.startSimulation();
 
 
-				HashSet<String> jobOutputFiles = new HashSet<>();
-				HashMap<String, Integer> jobInputFiles  = new HashMap<>();
+			List<Job> jobList = wfEngine.getJobsList();
 
-				long totalSize = 0;
-				long totalInputSize = 0;
 
-				// iterate all jobs and all files
-				for (Job job : jobList) {
-					for (Object o : job.getFileList()) {
-						org.cloudbus.cloudsim.File file = (org.cloudbus.cloudsim.File) o;
-						if (file.getType() == Parameters.FileType.INPUT.value) {
-							if (jobInputFiles.containsKey(file.getName())) {
-								continue;
-							}
-							totalSize+=file.getSize();
-							totalInputSize+=file.getSize();
-							jobInputFiles.put(file.getName(), file.getSize() );
-						}
-						else if (file.getType() == Parameters.FileType.OUTPUT.value) {
-							if (jobOutputFiles.contains(file.getName())) {
-								continue;
-							}
-							totalSize+=file.getSize();
-							jobOutputFiles.add(file.getName());
-						}
-					}
-				}
+			HashSet<String> jobOutputFiles = new HashSet<>();
+			HashMap<String, Integer> jobInputFiles  = new HashMap<>();
 
-				try (PrintWriter writer = new PrintWriter(args[1])) {
-					writer.println("TOTALSIZE,"+totalSize);
-					writer.println("INPUTSIZE,"+totalInputSize);
-					// iterate input files and write to csv
-					for (String inputName : jobInputFiles.keySet()) {
-						if (jobOutputFiles.contains(inputName)) {
+			long totalSize = 0;
+			long totalInputSize = 0;
+
+			// iterate all jobs and all files
+			for (Job job : jobList) {
+				for (Object o : job.getFileList()) {
+					org.cloudbus.cloudsim.File file = (org.cloudbus.cloudsim.File) o;
+					if (file.getType() == Parameters.FileType.INPUT.value) {
+						if (jobInputFiles.containsKey(file.getName())) {
 							continue;
-						} else {
-							writer.println(inputName + "," + jobInputFiles.get(inputName));
 						}
+						totalSize+=file.getSize();
+						totalInputSize+=file.getSize();
+						jobInputFiles.put(file.getName(), file.getSize() );
+					}
+					else if (file.getType() == Parameters.FileType.OUTPUT.value) {
+						if (jobOutputFiles.contains(file.getName())) {
+							continue;
+						}
+						totalSize+=file.getSize();
+						jobOutputFiles.add(file.getName());
 					}
 				}
+			}
+
+			try (PrintWriter writer = new PrintWriter(args[1])) {
+				writer.println("TOTALSIZE,"+totalSize);
+				writer.println("INPUTSIZE,"+totalInputSize);
+				// iterate input files and write to csv
+				for (String inputName : jobInputFiles.keySet()) {
+					if (jobOutputFiles.contains(inputName)) {
+						continue;
+					} else {
+						writer.println(inputName + "," + jobInputFiles.get(inputName));
+					}
+				}
+			}
 
 
-	            CloudSim.stopSimulation();
+			CloudSim.stopSimulation();
 
 		} catch (Exception e) {
 			e.printStackTrace();
