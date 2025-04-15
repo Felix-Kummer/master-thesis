@@ -62,114 +62,113 @@ public class FederatedTwoSites {
 		try {
 			
 			// Load workflow
-			 //String daxPath = "/home/fk/Schreibtisch/master/workflowSim_git/config/dax/Montage_100.xml";
-			 String daxPath = configParser.getWorkflowPath();
-	            if(daxPath == null){
-	                Log.printLine("[DONE]  Warning: Please replace daxPath with the physical path in your working environment!");
-	                return;
-	            }
-	            File daxFile = new File(daxPath);
-	            if(!daxFile.exists()){
-	                Log.printLine("Warning: Please replace daxPath with the physical path in your working environment!");
-	                return;
-	            }
+			String daxPath = configParser.getWorkflowPath();
+			if(daxPath == null){
+				Log.printLine("[DONE]  Warning: Please replace daxPath with the physical path in your working environment!");
+				return;
+			}
+			File daxFile = new File(daxPath);
+			if(!daxFile.exists()){
+				Log.printLine("Warning: Please replace daxPath with the physical path in your working environment!");
+				return;
+			}
 
-				NUM_SITES      = configParser.getNumSites();
-				TASK_THRESHOLD = configParser.getTaskThreshold();
-				SEC_THRESHOLD  = configParser.getSecThreshold();
-	            
+			NUM_SITES      = configParser.getNumSites();
+			TASK_THRESHOLD = configParser.getTaskThreshold();
+			SEC_THRESHOLD  = configParser.getSecThreshold();
+			
 
-				// set strategy, PART = new approach, RND = random
-				Parameters.SchedulingAlgorithm sch_method;
-				if (configParser.getStrategy().equals("PART")) {
-					sch_method = Parameters.SchedulingAlgorithm.DYNAMIC_PART;
-				} else if (configParser.getStrategy().equals("RND")) {
-					sch_method = Parameters.SchedulingAlgorithm.DYNAMIC_RND;
-				} else {
-					throw new RuntimeException("Named invalid strategy in config file, use RND or PART");
-				}
+			// set strategy, PART = new approach, RND = random
+			Parameters.SchedulingAlgorithm sch_method;
+			if (configParser.getStrategy().equals("PART")) {
+				sch_method = Parameters.SchedulingAlgorithm.DYNAMIC_PART;
+			} else if (configParser.getStrategy().equals("RND")) {
+				sch_method = Parameters.SchedulingAlgorithm.DYNAMIC_RND;
+			} else {
+				throw new RuntimeException("Named invalid strategy in config file, use RND or PART");
+			}
 
-				// we dynamically schedule, thus no planner
-	            Parameters.PlanningAlgorithm pln_method = Parameters.PlanningAlgorithm.INVALID; 
-	            
+			// we dynamically schedule, thus no planner
+			Parameters.PlanningAlgorithm pln_method = Parameters.PlanningAlgorithm.INVALID; 
+			
 
-	            ReplicaCatalog.FileSystem file_system = ReplicaCatalog.FileSystem.SHARED; 
-	            
+			ReplicaCatalog.FileSystem file_system = ReplicaCatalog.FileSystem.SHARED; 
+			
 
-				// No overheads
-	            OverheadParameters op = new OverheadParameters(0, null, null, null, null, 0);;
-	            
-	            // No Clustering
-	            ClusteringParameters.ClusteringMethod method = ClusteringParameters.ClusteringMethod.NONE;
-	            ClusteringParameters cp = new ClusteringParameters(0, 0, method, null);
-	            
+			// No overheads
+			OverheadParameters op = new OverheadParameters(0, null, null, null, null, 0);;
+			
+			// No Clustering
+			ClusteringParameters.ClusteringMethod method = ClusteringParameters.ClusteringMethod.NONE;
+			ClusteringParameters cp = new ClusteringParameters(0, 0, method, null);
+			
 
-				// Initialize static parameters
-	            Parameters.init(NUM_SITES, daxPath, null,
-	                    null, op, cp, sch_method, pln_method,
-	                    null, 0);
-	            ReplicaCatalog.init(file_system);
+			// Initialize static parameters
+			Parameters.init(NUM_SITES, daxPath, null,
+					null, op, cp, sch_method, pln_method,
+					null, 0);
+			ReplicaCatalog.init(file_system);
 
-	            
-	            
-	            // enable thresholds for scheduling
-	            Parameters.enable_thresholds(); 
-	            Parameters.setTASK_THRESHOLD(TASK_THRESHOLD);
-	            Parameters.setSEC_THRESHOLD(SEC_THRESHOLD);
-	            Parameters.setTHRESHOLD_CHECKING_INTERVAL(THRESHOLD_CHECKING_INTERVAL);
-	            
-	            // before creating any entities.
-	            int num_user = 1;   // number of grid users
-	            Calendar calendar = Calendar.getInstance(); 
-	            boolean trace_flag = false;  // mean trace events 
-	            
-	            // Initialize the CloudSim library
-	            CloudSim.init(num_user, calendar, trace_flag);
+			
+			
+			// enable thresholds for scheduling
+			Parameters.enable_thresholds(); 
+			Parameters.setTASK_THRESHOLD(TASK_THRESHOLD);
+			Parameters.setSEC_THRESHOLD(SEC_THRESHOLD);
+			Parameters.setTHRESHOLD_CHECKING_INTERVAL(THRESHOLD_CHECKING_INTERVAL);
+			
+			// before creating any entities.
+			int num_user = 1;   // number of grid users
+			Calendar calendar = Calendar.getInstance(); 
+			boolean trace_flag = false;  // mean trace events 
+			
+			// Initialize the CloudSim library
+			CloudSim.init(num_user, calendar, trace_flag);
 
-				// Create a WorkflowPlanner with one scheduler.
-				WorkflowPlanner wfPlanner = new WorkflowPlanner("planner_0", 1);
+			// Create a WorkflowPlanner with one scheduler.
+			WorkflowPlanner wfPlanner = new WorkflowPlanner("planner_0", 1);
 
-				// Create a WorkflowEngine
-				WorkflowEngine wfEngine = wfPlanner.getWorkflowEngine();
+			// Create a WorkflowEngine
+			WorkflowEngine wfEngine = wfPlanner.getWorkflowEngine();
 
-				// create sites
-	            List<WorkflowDatacenter> workflowDatacenters = new LinkedList<>();
-				List<CondorVM> vmList = new LinkedList<>();
-				createDatacenter(vmList, workflowDatacenters, wfEngine.getSchedulerId(0));
+			// create sites
+			List<WorkflowDatacenter> workflowDatacenters = new LinkedList<>();
+			List<CondorVM> vmList = new LinkedList<>();
+			createDatacenter(vmList, workflowDatacenters, wfEngine.getSchedulerId(0));
 
-				// verify site creation
-				if (vmList.size() != workflowDatacenters.size() || vmList.size() != NUM_SITES) {
-					throw new Exception("An inconsistent amount of sites and vms was created");
-				}
+			// verify site creation
+			if (vmList.size() != workflowDatacenters.size() || vmList.size() != NUM_SITES) {
+				throw new Exception("An inconsistent amount of sites and vms was created");
+			}
 
-	            /**
-	             * Submits this list of vms to this WorkflowEngine.
-	             */
-	            wfEngine.submitVmList(vmList);
-	            
-	            /**
-	             * Binds the data centers with the scheduler.
-	             */
-	            for (int i=0; i<NUM_SITES; i++) {
-	            	wfEngine.bindSchedulerDatacenter(workflowDatacenters.get(i).getId(),0);
-	            }
-
-
-	            CloudSim.startSimulation();
+			/**
+			 * Submits this list of vms to this WorkflowEngine.
+			 */
+			wfEngine.submitVmList(vmList);
+			
+			/**
+			 * Binds the data centers with the scheduler.
+			 */
+			for (int i=0; i<NUM_SITES; i++) {
+				wfEngine.bindSchedulerDatacenter(workflowDatacenters.get(i).getId(),0);
+			}
 
 
-	            List<Job> outputList0 = wfEngine.getJobsReceivedList();
+			CloudSim.startSimulation();
 
 
-	            CloudSim.stopSimulation();
-	            
-	            printJobList(outputList0);
-
-				writeResults(resultsPath, outputList0);
+			List<Job> outputList0 = wfEngine.getJobsReceivedList();
 
 
-				Log.printLine("END");
-	            
+			CloudSim.stopSimulation();
+			
+			printJobList(outputList0);
+
+			writeResults(resultsPath, outputList0);
+
+
+			Log.printLine("END");
+			
 		} catch (Exception e) {
 			e.printStackTrace();
             Log.printLine("The simulation has been terminated due to an unexpected error");

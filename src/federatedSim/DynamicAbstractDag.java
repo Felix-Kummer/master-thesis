@@ -636,7 +636,7 @@ public class DynamicAbstractDag {
 
 			// add children's subtree sizes
 			for (DynamicAbstractEdge childrenEdge : childrenEdges.values()){
-				size += childrenEdge.getChildrenToParentsDependencyType() * childrenEdge.getNode2().getSubtreeSize(knownNames);
+				size += childrenEdge.getNode2().getSubtreeSize(knownNames) * childrenEdge.getChildrenToParentsDependencyType() / childrenEdge.getParentsToChildrenDependencyType() ;
 			}
 			return size;
 		}

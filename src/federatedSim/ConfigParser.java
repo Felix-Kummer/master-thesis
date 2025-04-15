@@ -11,7 +11,6 @@ import java.util.*;
 
 public class ConfigParser {
 
-    // TODO add all params from federatedTwoSites
     private String workflowPath;
     private int numSites;
     private String strategy;
